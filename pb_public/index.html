@@ -244,6 +244,9 @@
     <button class="btn big" id="lg-ulaz">Prijavi se</button>
     <div id="lg-poruka"></div>
     <div class="nap" id="lg-napomena"></div>
+    <div style="margin-top:14px;text-align:center;font-size:11.5px;color:var(--muted)">
+      inačica <b id="lg-inacica"></b>
+    </div>
   </div>
 </div>
 
@@ -2719,7 +2722,10 @@ function odjava(){
   $("#lg-korisnik").value=""; $("#lg-sifra").value=""; $("#lg-poruka").innerHTML="";
   osvjeziNapomenu();
 }
+/* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
+const INACICA = "2026-09-05 · izuzeci + obrasci";
 function osvjeziNapomenu(){
+  $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =
     'Prijavite se korisničkim imenom i šifrom koje ste dobili od voditelja odjela. '+
     'Šifru poslije možete promijeniti sami, u kartici <b>Moj pristup</b>.';

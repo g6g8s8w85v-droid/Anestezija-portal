@@ -10,12 +10,14 @@ RUN wget -O /tmp/pb.zip \
  && unzip /tmp/pb.zip -d /pb/ \
  && rm /tmp/pb.zip
 
-# Broj inačice portala.
-# Ako nova objava ne uhvati izmijenjeni index.html (Railway zna posegnuti za
-# spremljenim slojem od prošle gradnje), povećaj ovaj broj za jedan i objavi
-# opet. Time se sve ispod ovoga gradi iznova.
-ARG PORTAL_VERZIJA=2
-RUN echo "portal ${PORTAL_VERZIJA}" > /pb/verzija.txt
+# --- osiguranje da svaka objava stvarno prekopira novi portal ---
+# Railway sam dodaje oznaku zadnjeg commita. Kako se ona mijenja pri svakoj
+# izmjeni na GitHubu, sve ispod ove linije gradi se iznova i spremnik gradnje
+# ne može podvaliti staru datoteku.
+ARG RAILWAY_GIT_COMMIT_SHA=nepoznato
+# Rezervni ručni prekidač: ako ikad zatreba, povećaj broj za jedan.
+ARG PORTAL_VERZIJA=3
+RUN echo "${RAILWAY_GIT_COMMIT_SHA} / ${PORTAL_VERZIJA}" > /pb/verzija.txt
 
 # portal (index.html) — Railway ga preuzima iz repozitorija
 COPY pb_public /pb/pb_public

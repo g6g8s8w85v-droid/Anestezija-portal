@@ -107,6 +107,18 @@
   .korisnik .btnOdjava{background:rgba(255,255,255,.18);border:0;color:#fff;padding:5px 12px;
     border-radius:16px;font-size:12px;cursor:pointer;font-family:inherit}
   .korisnik .btnOdjava:hover{background:rgba(255,255,255,.28)}
+  /* upozorenje pred automatsku odjavu */
+  #odjavaOkvir{position:fixed;inset:0;z-index:400;display:none;
+    align-items:center;justify-content:center;padding:20px;
+    background:rgba(23,36,29,.35);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+  #odjavaOkvir.open{display:flex}
+  #odjavaOkvir .box{background:#fff;border-radius:18px;padding:26px 30px;max-width:400px;
+    width:100%;text-align:center;
+    box-shadow:0 3px 8px rgba(23,36,29,.08), 0 26px 60px -24px rgba(23,36,29,.5)}
+  #odjavaOkvir h3{margin:0 0 8px;font-size:17px;font-weight:650}
+  #odjavaOkvir p{margin:0 0 20px;font-size:13.5px;color:var(--muted);line-height:1.55}
+  #odjavaOkvir .btn{width:100%;justify-content:center}
+  @media print{ #odjavaOkvir{display:none!important} }
   .kaoTraka{background:var(--tight);border:1px solid var(--tight-b);border-radius:8px;
     padding:8px 12px;font-size:13px;display:flex;align-items:center;gap:10px;margin-bottom:14px}
   /* arhiva termina */
@@ -307,6 +319,16 @@
       verzija <b id="lg-inacica"></b>
     </div>
     </div>
+  </div>
+</div>
+
+<!-- upozorenje pred automatsku odjavu -->
+<div id="odjavaOkvir">
+  <div class="box">
+    <h3>Jeste li još tu?</h3>
+    <p>Zbog neaktivnosti ćete biti odjavljeni za <b id="odjavaSekunde">60</b> s.<br>
+      Ništa se ne gubi — svi upisani termini su već spremljeni.</p>
+    <button class="btn big" id="odjavaOstani">Ostajem</button>
   </div>
 </div>
 
@@ -677,6 +699,26 @@
   </div>
 
   <div class="card">
+    <h2>Automatska odjava</h2>
+    <p class="hint">Portal se sam odjavi ako ga se toliko dugo ne dodirne, ili ako se
+      kartica toliko dugo ne otvori. Minutu prije javi se okvir s pitanjem ostaje li
+      korisnik. Odjava ništa ne gubi — svaki termin je zapisan čim je unesen.</p>
+    <div class="row" style="max-width:300px;align-items:flex-end">
+      <div><label>Nakon koliko minuta</label>
+        <select id="p-odjava">
+          <option value="0">nikad</option>
+          <option value="5">5 minuta</option>
+          <option value="10">10 minuta</option>
+          <option value="15">15 minuta</option>
+          <option value="20">20 minuta</option>
+          <option value="30">30 minuta</option>
+          <option value="60">60 minuta</option>
+        </select></div>
+    </div>
+    <div id="p-odjavaPoruka"></div>
+  </div>
+
+  <div class="card">
     <h2>Podaci za obrazac O034-02/1</h2>
     <p class="hint">Upisuju se u zahtjev za korištenje godišnjeg odmora koji liječnici ispisuju.</p>
     <div class="row" style="max-width:760px">
@@ -815,6 +857,7 @@ const zadanePostavke = () => ({
   sezonaDo:"03-31",
   sezonaIduca:true,   /* završetak je u sljedećoj godini (31.03.2027. → 31.03.2028.) */
   izuzeciOtvoreni:[],         /* mjeseci ("2026-10") za koje je voditelj otvorio upis */
+  odjavaMinuta:10,            /* automatska odjava nakon toliko minuta bez dodira; 0 = isključeno */
   sluzba:"",
   odjel:"Odjel anestezije, reanimatologije i intenzivne medicine",
   polja:zadanaPolja(),        /* položaji upisa na obrascu */
@@ -836,6 +879,10 @@ function ispraviPostavke(){
     db.postavke.limitiMjeseci = zadanePostavke().limitiMjeseci;
   if(!Array.isArray(db.postavke.razdoblja)) db.postavke.razdoblja = [];
   if(!Array.isArray(db.postavke.izuzeciOtvoreni)) db.postavke.izuzeciOtvoreni = [];
+  {
+    const m = Number(db.postavke.odjavaMinuta);
+    db.postavke.odjavaMinuta = isFinite(m) ? Math.max(0, Math.min(180, m)) : 10;
+  }
   if(!db.dezurstva || typeof db.dezurstva!=="object") db.dezurstva = {};
   /* polja se spajaju po ključu, pa dodavanje novog polja ne briše ranije namještene */
   {
@@ -1339,7 +1386,38 @@ function crtajPocetnu(){
       '<h3>'+esc(p.n)+'</h3><p>'+esc(p.o)+'</p></button>').join("");
 }
 
+/* ==========================================================
+   STRELICE PREGLEDNIKA
+   Preglednik ne zna za naša područja i tabove — sve mu je jedna stranica.
+   Zato mu svaki prijelaz sami upisujemo u povijest, pa strelice natrag i
+   naprijed hodaju po portalu umjesto da ga napuste.
+   ========================================================== */
+let povijestRadi = false;   /* upisujemo tek nakon prijave */
+let vracamSe = false;       /* dok obnavljamo stanje iz povijesti, ne upisujemo novo */
+
+function upisiUPovijest(tab){
+  if(!povijestRadi || vracamSe) return;
+  const sad = history.state && history.state.portal;
+  if(sad && sad.tab === tab) return;        /* isti korak, ne udvostručuj */
+  try{ history.pushState({portal:{tab}}, ""); }catch(e){}
+}
+function pokreniPovijest(){
+  povijestRadi = false;
+  try{ history.replaceState({portal:{tab:null}}, ""); }catch(e){}
+  povijestRadi = true;
+}
+window.addEventListener("popstate", e=>{
+  if(!sesija) return;                        /* odjavljen — zaslon za prijavu pokriva sve */
+  const st = e.state && e.state.portal;
+  vracamSe = true;
+  try{
+    if(!st || !st.tab) otvoriPocetnu();
+    else otvoriTab(st.tab);
+  }finally{ vracamSe = false; }
+});
+
 function otvoriPocetnu(){
+  upisiUPovijest(null);
   podrucje = null;
   $$("section.page").forEach(x=>x.classList.remove("active"));
   $("#tab-pocetna").classList.add("active");
@@ -1360,6 +1438,7 @@ function otvoriTab(ime){
   const b = $('nav.tabs button[data-tab="'+ime+'"]');
   /* nepoznat tab ili nema ovlasti → natrag na početnu, nikad u prazno */
   if(!b || (b.dataset.admin==="1" && !jeAdmin)){ otvoriPocetnu(); return; }
+  upisiUPovijest(ime);
   podrucje = b.dataset.pod;
   $$("nav.tabs button").forEach(x=>x.classList.remove("active"));
   $$("section.page").forEach(x=>x.classList.remove("active"));
@@ -2491,6 +2570,11 @@ function spremiSezonu(polje, el){
   db.postavke[polje]=md; spremi(); prGodina=0; crtajSve();
   poruka($("#p-sezPoruka"),"Razdoblje je sada "+opisSezone(db.godina),"ok");
 }
+function crtajOdjavu(){
+  const el = $("#p-odjava"); if(!el) return;
+  el.value = String(Number(db.postavke.odjavaMinuta)||0);
+}
+
 function crtajPodlogu(){
   const vlastiti = !!obrazacUrl;
   $("#p-pomakX").value = Number(db.postavke.pomakX)||0;
@@ -2524,6 +2608,7 @@ function uredipolje(i, os, vr){
   db.postavke.polja = p; spremi(); crtajPodlogu();
 }
 function crtajPostavke(){
+  crtajOdjavu();
   $("#p-podlogaBtn").onclick = ()=> $("#p-podloga").click();
   $("#p-podloga").onchange = async e=>{
     const f = e.target.files[0]; e.target.value="";
@@ -3089,10 +3174,12 @@ async function ulaz(){
     $("#lg-sifra").value = "";
     document.body.classList.remove("odjavljen");
     odabir={od:null,do:null};
-    puniGodine(); crtajSve(); otvoriPocetnu();
+    puniGodine(); crtajSve(); pokreniPovijest(); otvoriPocetnu(); odjavaPokreni();
   } finally { g.disabled = false; g.textContent = "Prijavi se"; }
 }
 function odjava(){
+  odjavaZaustavi();
+  povijestRadi = false;
   sesija=null; jeAdmin=false; gledamKao=null; odabir={od:null,do:null};
   PB.token=""; PB.ja=null;
   db.lijecnici=[]; db.prijave=[]; db.dezurstva={}; db.izuzeci=[]; db.edukacije=[];
@@ -3101,8 +3188,88 @@ function odjava(){
   $("#lg-korisnik").value=""; $("#lg-sifra").value=""; $("#lg-poruka").innerHTML="";
   osvjeziNapomenu();
 }
+/* ==========================================================
+   AUTOMATSKA ODJAVA
+   Tri slučaja pokrivena istim vremenom:
+   1. netko ostane na portalu i ništa ne dira
+   2. netko prebaci na drugu karticu i zaboravi
+   3. netko ode strelicom natrag, pa se vrati naprijed — preglednik tada
+      vrati zamrznutu stranicu, zajedno s prijavom, pa je treba provjeriti
+   Odjava ništa ne gubi: svaki termin je zapisan u bazu čim je unesen.
+   ========================================================== */
+const ODJAVA_NAJAVA = 60;          /* sekundi upozorenja prije odjave */
+let odjavaZadnjiDodir = Date.now();
+let odjavaSat = null;              /* otkucaj svake sekunde */
+let odjavaOdbrojava = 0;           /* preostalo sekundi upozorenja, 0 = nema */
+let odjavaSakriveno = null;        /* trenutak kad je kartica otišla u pozadinu */
+
+const odjavaGranicaMs = () => (Number(db.postavke.odjavaMinuta)||0) * 60000;
+
+function odjavaDodir(){
+  odjavaZadnjiDodir = Date.now();
+  if(odjavaOdbrojava){ odjavaOdbrojava = 0; $("#odjavaOkvir").classList.remove("open"); }
+}
+
+function odjavaPokreni(){
+  odjavaDodir();
+  if(odjavaSat) return;
+  odjavaSat = setInterval(odjavaOtkucaj, 1000);
+}
+function odjavaZaustavi(){
+  if(odjavaSat){ clearInterval(odjavaSat); odjavaSat = null; }
+  odjavaOdbrojava = 0;
+  const o = $("#odjavaOkvir"); if(o) o.classList.remove("open");
+}
+
+function odjavaOtkucaj(){
+  if(!sesija) return;
+  const granica = odjavaGranicaMs();
+  if(!granica) return;                       /* isključeno */
+
+  if(odjavaOdbrojava){
+    odjavaOdbrojava--;
+    $("#odjavaSekunde").textContent = odjavaOdbrojava;
+    if(odjavaOdbrojava<=0) odjavaZbogNeaktivnosti();
+    return;
+  }
+  const mirovanje = Date.now() - odjavaZadnjiDodir;
+  if(mirovanje >= granica - ODJAVA_NAJAVA*1000){
+    odjavaOdbrojava = ODJAVA_NAJAVA;
+    $("#odjavaSekunde").textContent = odjavaOdbrojava;
+    $("#odjavaOkvir").classList.add("open");
+  }
+}
+
+function odjavaZbogNeaktivnosti(){
+  odjavaZaustavi();
+  odjava();
+  poruka($("#lg-poruka"),
+    "Odjavljeni ste zbog neaktivnosti. Ništa nije izgubljeno — prijavite se ponovno.","warn");
+}
+
+/* Povratak na karticu: ako je bila sakrivena duže od dogovorenog, odjava.
+   Pokriva i stranicu koju preglednik vrati zamrznutu (strelica naprijed). */
+function odjavaProvjeriPovratak(){
+  if(!sesija || !odjavaSakriveno) return;
+  const odsutan = Date.now() - odjavaSakriveno;
+  odjavaSakriveno = null;
+  const granica = odjavaGranicaMs();
+  if(granica && odsutan >= granica) odjavaZbogNeaktivnosti();
+  else odjavaDodir();
+}
+
+["mousedown","keydown","touchstart","scroll","wheel"].forEach(dog=>
+  window.addEventListener(dog, odjavaDodir, {passive:true, capture:true}));
+
+document.addEventListener("visibilitychange", ()=>{
+  if(document.hidden) odjavaSakriveno = Date.now();
+  else odjavaProvjeriPovratak();
+});
+window.addEventListener("pagehide", ()=>{ odjavaSakriveno = Date.now(); });
+window.addEventListener("pageshow", e=>{ if(e.persisted) odjavaProvjeriPovratak(); });
+
 /* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
-const INACICA = "1.0";
+const INACICA = "1.1";
 function osvjeziNapomenu(){
   $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =
@@ -3113,6 +3280,15 @@ $("#lg-ulaz").onclick = ulaz;
 $("#lg-sifra").onkeydown = e=>{ if(e.key==="Enter") ulaz(); };
 $("#lg-korisnik").onkeydown = e=>{ if(e.key==="Enter") $("#lg-sifra").focus(); };
 $("#btnOdjava").onclick = odjava;
+$("#odjavaOstani").onclick = odjavaDodir;
+$("#p-odjava").onchange = e=>{
+  db.postavke.odjavaMinuta = Number(e.target.value)||0;
+  spremi();
+  odjavaDodir();
+  poruka($("#p-odjavaPoruka"), db.postavke.odjavaMinuta
+    ? "Odjava nakon <b>"+db.postavke.odjavaMinuta+"</b> minuta bez dodira."
+    : "Automatska odjava je isključena.", "ok");
+};
 
 /* ---- liječnik mijenja svoje korisničko ime i šifru ---- */
 $("#mp-spremi").onclick = async ()=>{

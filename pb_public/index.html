@@ -41,8 +41,23 @@
   nav.tabs button:hover{color:var(--ink)}
   nav.tabs button.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
   nav.tabs button.skriven{display:none}
-  nav.tabs button.natrag{color:var(--accent);font-weight:600;padding-left:22px}
+  nav.tabs button.natrag{color:var(--accent);font-weight:600;
+    display:inline-flex;align-items:center;gap:7px;padding-left:16px;padding-right:16px}
+  nav.tabs button.natrag svg{transition:transform .16s ease}
   nav.tabs button.natrag:hover{background:var(--accent-soft)}
+  nav.tabs button.natrag:hover svg{transform:translateX(-3px)}
+
+  /* povratak korak unatrag — namjerno u boji, da se ne traži */
+  button.btn.povratak{
+    background:linear-gradient(160deg,#eaf4ee,#dcebe2);
+    color:var(--accent);border:1px solid #b9d6c5;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
+    font-size:13.5px;font-weight:600;border-radius:999px;
+    padding:8px 16px 8px 13px;display:inline-flex;align-items:center;gap:8px}
+  button.btn.povratak:hover{background:linear-gradient(160deg,#e0efe6,#cfe4d8);filter:none}
+  button.btn.povratak:active{transform:translateY(1px)}
+  button.btn.povratak svg{transition:transform .16s ease}
+  button.btn.povratak:hover svg{transform:translateX(-3px)}
   /* početni zaslon s karticama */
   .pozdrav{margin:6px 2px 20px}
   .pozdrav{text-align:center;margin:14px 2px 30px}
@@ -352,7 +367,7 @@
 </header>
 
 <nav class="tabs">
-  <button class="natrag" id="btnPocetna" title="Natrag na početnu">‹ Početna</button>
+  <button class="natrag" id="btnPocetna" title="Natrag na početnu"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>Početna</button>
   <button data-tab="prijava" data-pod="godisnji">Nova prijava</button>
   <button data-tab="mjesec" data-pod="godisnji">Pregled po mjesecima</button>
   <button data-tab="stanje" data-pod="godisnji" data-admin="1">Stanje dana</button>
@@ -385,7 +400,7 @@
 
   <div class="card" id="obrasciUnos" style="display:none">
     <div class="toolbar" style="margin:0 0 8px">
-      <button class="btn ghost sm" id="obr-natrag">‹ Svi obrasci</button>
+      <button class="btn povratak" id="obr-natrag" title="Natrag na popis obrazaca"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>Natrag na obrasce</button>
     </div>
     <h2 id="obr-naslov"></h2>
     <p class="hint" id="obr-podnaslov"></p>

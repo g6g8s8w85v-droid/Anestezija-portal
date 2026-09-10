@@ -222,6 +222,10 @@
   .dan.zadnje{background:var(--tight);border-color:var(--tight-b)}
   .dan.puno{background:var(--full);border-color:var(--full-b);cursor:not-allowed}
   .dan.moj{background:var(--mine);border-color:var(--mine-b);cursor:not-allowed}
+  /* vlastiti termin koji još nije predan — vidljiv, ali očito radna verzija */
+  .dan.nepredan{background-image:repeating-linear-gradient(45deg,
+    rgba(255,255,255,.75) 0 4px, transparent 4px 8px);
+    border-style:dashed;border-width:1.5px}
   .dan.proslo{opacity:.4;cursor:not-allowed}
   .dan.sel{outline:3px solid var(--accent);outline-offset:-1px;z-index:2}
   .dan.uraspon{box-shadow:inset 0 0 0 2px var(--accent)}
@@ -439,6 +443,7 @@
         <span><i style="background:var(--tight);border-color:var(--tight-b)"></i>zadnje mjesto</span>
         <span><i style="background:var(--full);border-color:var(--full-b)"></i>popunjeno</span>
         <span><i style="background:var(--mine);border-color:var(--mine-b)"></i>vaš termin</span>
+        <span><i style="background:var(--mine);border-color:var(--mine-b);background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.75) 0 3px,transparent 3px 6px)"></i>nije predano</span>
         <span><i style="background:#eef1f4"></i>vikend</span>
         <span><i style="background:#fbe7e7"></i>blagdan</span>
       </div>
@@ -1239,16 +1244,27 @@ function saldo(l){
   const pravo=Number(l.pravoDana)||0, pren=Number(l.preneseniDani)||0, ukupno=pravo+pren;
   return {pravo,pren,ukupno,potvrdeno,ceka,preostalo:ukupno-potvrdeno-ceka};
 }
+/* Mjesto u limitu zauzima SAMO predani (zaključani) termin.
+   Radna verzija koju liječnik još nije potvrdio nikome ne blokira dan —
+   ostaje samo vidljiva, da voditelj zna da netko nije dovršio upis. */
 function odsutniNaDan(d, izuzmiPrijavuId){
   const s=iso(d);
-  return [...new Set(db.prijave.filter(p=> zive(p) && p.id!==izuzmiPrijavuId &&
+  return [...new Set(db.prijave.filter(p=> zive(p) && p.zakljucana && p.id!==izuzmiPrijavuId &&
+    s>=p.od && s<=p.do).map(p=>p.lijecnikId))];
+}
+/* Tko na taj dan ima upisan, ali nepredan termin. */
+function nepredaniNaDan(d){
+  const s=iso(d);
+  return [...new Set(db.prijave.filter(p=> zive(p) && !p.zakljucana &&
     s>=p.od && s<=p.do).map(p=>p.lijecnikId))];
 }
 function stanjeDana(d, lijId){
   const svi = odsutniNaDan(d);
   const drugi = svi.filter(id=>id!==lijId);
+  const nep = nepredaniNaDan(d);
   const lim = limitZa(d);
   return {broj:svi.length, drugi:drugi.length, limit:lim, moj:svi.includes(lijId),
+          mojNepredan:nep.includes(lijId), nepredanih:nep.filter(id=>id!==lijId).length,
           slobodno:drugi.length<lim, zadnje:drugi.length===lim-1};
 }
 /* Oznaka stanja jedne prijave.
@@ -1332,7 +1348,31 @@ const tockica = id => '<span style="display:inline-block;width:10px;height:10px;
 
 let odabir = {od:null, do:null};
 let prMjesec = new Date().getMonth(), prGodina = new Date().getFullYear();
-let mjMjesec = new Date().getMonth();
+/* Pokazivač mjeseca u Pregledu je APSOLUTAN (godina*12 + mjesec), da bi
+   listanje moglo prijeći u sljedeću kalendarsku godinu — razdoblje korištenja
+   ne prati kalendarsku godinu (npr. 14.09.2026. – 31.01.2027.). */
+let mjMjesec = new Date().getFullYear()*12 + new Date().getMonth();
+const mjG = () => Math.floor(mjMjesec/12);
+const mjM = () => ((mjMjesec % 12) + 12) % 12;
+
+/* Prvi i zadnji mjesec razdoblja, kao apsolutni brojevi. */
+function mjeseciSezone(g){
+  const s = sezona(g);
+  const [g1,m1] = s.od.split("-").map(Number);
+  const [g2,m2] = s.do.split("-").map(Number);
+  return { prvi:g1*12 + (m1-1), zadnji:g2*12 + (m2-1) };
+}
+/* Drži pokazivač unutar razdoblja; ako je izvan, primakne ga najbližem kraju. */
+function uskladiMjesec(){
+  const b = mjeseciSezone(db.godina);
+  if(mjMjesec < b.prvi)  mjMjesec = b.prvi;
+  if(mjMjesec > b.zadnji) mjMjesec = b.zadnji;
+}
+function pomakniPregled(n){
+  const b = mjeseciSezone(db.godina);
+  mjMjesec = Math.max(b.prvi, Math.min(b.zadnji, mjMjesec + n));
+  crtajMjesec(); crtajMjPrijave();
+}
 
 function primijeniNacin(){
   $$("[data-admin]").forEach(el=>{
@@ -1570,11 +1610,14 @@ function crtajOdabirKalendar(){
       sub = st.broj+"/"+st.limit;
       const op = opisLimita(d);
       if(op) naslov += " — "+op+" (najviše "+st.limit+")";
-      if(st.moj){ cls+=" moj"; klik=false; naslov+=" — već ste prijavljeni"; }
+      if(st.moj){ cls+=" moj"; klik=false; naslov+=" — vaš predani termin"; }
+      else if(st.mojNepredan){ cls+=" moj nepredan"; klik=false;
+        naslov+=" — vaš termin, još nije predan"; }
       else if(!lijId){ naslov+=" — odsutnih "+st.broj+" od "+st.limit; }
       else if(st.drugi >= st.limit){ cls+=" puno"; klik=false; naslov+=" — popunjeno ("+st.drugi+"/"+st.limit+")"; }
       else if(st.zadnje){ cls+=" zadnje"; naslov+=" — zadnje slobodno mjesto"; }
       else { cls+=" slobodno"; naslov+=" — slobodno ("+st.drugi+"/"+st.limit+")"; }
+      if(st.nepredanih) naslov += " · nepredanih: "+st.nepredanih;
     }
     if(d < danas) cls+=" proslo";
     if(odabir.od===s || odabir.do===s) cls+=" sel";
@@ -1727,6 +1770,22 @@ function potvrdiSve(lijId){
   if(!confirm("PREDAJA TERMINA\n\nPredajete "+moje.length+" termin(a), ukupno "+dana+" radnih dana:\n"+
     moje.map(p=>"  • "+hr(p.od)+" – "+hr(p.do)).join("\n")+
     "\n\nNakon predaje ih ne možete sami mijenjati ni otkazati — izmjenu može napraviti samo voditelj.\n\nPredati i zaključati?")) return;
+  /* Dok je termin bio radna verzija nije nikome blokirao dan, pa se u
+     međuvremenu mogao popuniti. Zato se limit provjerava iznova, na predaji. */
+  const sudari = [];
+  moje.forEach(p=>{
+    const r = provjeri(lijId, p.od, p.do, p.id);
+    if(r.kolizije.length) sudari.push({p, k:r.kolizije});
+  });
+  if(sudari.length){
+    const t = sudari.map(x=>"  • "+hr(x.p.od)+" – "+hr(x.p.do)+": popunjeno "+
+      x.k.length+(x.k.length===1?" dan":" dana")+" ("+hr(x.k[0].datum)+
+      (x.k.length>1?" – "+hr(x.k[x.k.length-1].datum):"")+")").join("\n");
+    alert("PREDAJA NIJE PROŠLA\n\nU međuvremenu se popunilo:\n"+t+
+      "\n\nOtkažite te termine i odaberite druge dane.");
+    crtajSve();
+    return;
+  }
   moje.forEach(p=>{ p.zakljucana = true;
     posalji(()=>PB.azuriraj("prijave", p.id, {zakljucana:true}), "predaja termina"); });
   crtajSve();
@@ -1743,21 +1802,25 @@ function otkljucaj(lijId){
    TAB: PREGLED PO MJESECIMA
    ========================================================== */
 function crtajMjesec(){
-  $("#mj-naslov").textContent = MJESECI[mjMjesec]+" "+db.godina+".";
-  const osn = Number(db.postavke.limitiMjeseci[mjMjesec])||0;
-  const rz = razdobljaMjeseca(db.godina, mjMjesec);
+  uskladiMjesec();
+  const G = mjG(), M = mjM(), gr = mjeseciSezone(db.godina);
+  $("#mj-naslov").textContent = MJESECI[M]+" "+G+".";
+  $("#mj-prev").disabled = mjMjesec <= gr.prvi;
+  $("#mj-next").disabled = mjMjesec >= gr.zadnji;
+  const osn = Number(db.postavke.limitiMjeseci[M])||0;
+  const rz = razdobljaMjeseca(G, M);
   $("#mj-limit").textContent = rz.length ? rz.length+" posebno razdoblje" : "";
   const lj = aktivni(), cilj = $("#mj-tablica");
   if(!lj.length){ cilj.innerHTML='<div class="empty">Nema unesenih liječnika.</div>';
     $("#mj-razdoblja").innerHTML=""; return; }
 
-  const brDana = new Date(db.godina, mjMjesec+1, 0).getDate();
+  const brDana = new Date(G, M+1, 0).getDate();
   const dani = [];
-  for(let i=1;i<=brDana;i++) dani.push(new Date(db.godina, mjMjesec, i));
+  for(let i=1;i<=brDana;i++) dani.push(new Date(G, M, i));
   const klasa = d => jeBlagdan(d)?"hol":(jeVikend(d)?"we":"");
 
   let h = '<table class="p1"><thead>';
-  h += '<tr><th class="ime">'+MJESECI[mjMjesec]+' '+db.godina+'.</th>'+
+  h += '<tr><th class="ime">'+MJESECI[M]+' '+G+'.</th>'+
        dani.map(d=>'<th class="'+klasa(d)+(razdobljaZa(d).length?" vrsno":"")+
          '" title="'+esc(hr(iso(d))+(opisLimita(d)?" — "+opisLimita(d):""))+'">'+d.getDate()+'</th>').join("")+'</tr>';
   h += '<tr><th class="ime"></th>'+
@@ -1775,12 +1838,16 @@ function crtajMjesec(){
       const spojiL = i>0 && naDan[i-1] && naDan[i-1].id===p.id;
       const spojiD = i<dani.length-1 && naDan[i+1] && naDan[i+1].id===p.id;
       const cek = p.status==="ceka";
+      const nep = !p.zakljucana;
       let stil = "background:"+bojaZa(l.id)+";";
       if(cek) stil += "background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.6) 0 3px,transparent 3px 6px);";
+      /* nepredano se vidi, ali je očito radna verzija — ne zauzima mjesto */
+      if(nep) stil += "background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.82) 0 4px,transparent 4px 8px);opacity:.75;";
       if(spojiL) stil += "border-left:0;";
       if(spojiD) stil += "border-right:0;";
       h += '<td class="'+klasa(d)+'" style="'+stil+'" title="'+
-           esc(l.ime+" — "+hr(p.od)+" do "+hr(p.do)+(cek?" (čeka odobrenje)":""))+'"></td>';
+           esc(l.ime+" — "+hr(p.od)+" do "+hr(p.do)+
+             (nep ? " (nije predano)" : cek ? " (čeka odobrenje)" : ""))+'"></td>';
     });
     h += '</tr>';
   });
@@ -1795,8 +1862,10 @@ function crtajMjesec(){
   h += '</tr><tr class="sluzbeni"><td class="ime">Odsutnih</td>';
   dani.forEach(d=>{
     if(!jeRadni(d)){ h+='<td class="'+klasa(d)+'"></td>'; return; }
-    const n = odsutniNaDan(d).length;
-    h += '<td'+(n>limitZa(d)?' class="prek"':'')+'>'+(n||"")+'</td>';
+    const n = odsutniNaDan(d).length, np = nepredaniNaDan(d).length;
+    const t = (n||np) ? (n||0)+(np?'<span style="color:var(--muted)">+'+np+'</span>':'') : "";
+    h += '<td'+(n>limitZa(d)?' class="prek"':'')+' title="'+
+         esc("predano: "+n+(np?", nije predano: "+np:""))+'">'+t+'</td>';
   });
   h += '</tr></tbody></table>';
   cilj.innerHTML = h;
@@ -1808,7 +1877,7 @@ function crtajMjesec(){
 }
 
 function crtajMjPrijave(){
-  const lista = prijaveMjeseca(db.godina, mjMjesec);
+  const lista = prijaveMjeseca(mjG(), mjM());
   const tb = $("#mjPrijaveTbody");
   if(!lista.length){ tb.innerHTML='<tr><td colspan="5"><div class="empty">U ovom mjesecu nema prijava.</div></td></tr>'; return; }
   tb.innerHTML = lista.map(p=>{
@@ -1877,6 +1946,15 @@ function crtajStanje(){
       u.push(['warn', esc(l.ime)+" još nije prijavio/la nijedan godišnji za "+db.godina+"."]);
     if(s.preostalo<0) u.push(['bad', esc(l.ime)+" je u minusu "+Math.abs(s.preostalo)+" dana."]);
   });
+  /* Tko je upisao termine, a nije ih predao — najvažnije upozorenje voditelju,
+     jer takvi termini ne zauzimaju mjesto i mogu mu ispod ruke propasti. */
+  const nepredali = lj.filter(l=> brojUIzradi(l.id) > 0);
+  if(nepredali.length) u.push(['warn',
+    "<b>"+nepredali.length+(nepredali.length===1?" liječnik ima upisan termin koji nije predao"
+      :" liječnika ima upisane termine koje nisu predali")+".</b> "+
+    "Takvi termini ne zauzimaju mjesto i mogu ostati bez njega — podsjetite ih na "+
+    "<b>Potvrdi sve i zaključaj</b>.<br>"+
+    nepredali.map(l=> esc(l.ime)+" ("+brojUIzradi(l.id)+")").join(" · ")]);
   const prek = daniPreko();
   if(prek.length) u.push(['bad', "Na "+prek.length+" dana premašen je dopušteni broj odsutnih (prvi: "+hr(prek[0])+")."]);
   const c = db.prijave.filter(p=>p.status==="ceka").length;
@@ -3333,7 +3411,7 @@ window.addEventListener("pagehide", ()=>{ odjavaSakriveno = Date.now(); });
 window.addEventListener("pageshow", e=>{ if(e.persisted) odjavaProvjeriPovratak(); });
 
 /* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
-const INACICA = "1.2";
+const INACICA = "1.3";
 function osvjeziNapomenu(){
   $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =
@@ -3404,8 +3482,8 @@ function pomakniPrijavu(smjer){
 $("#pr-prev").onclick = ()=> pomakniPrijavu(-1);
 $("#pr-next").onclick = ()=> pomakniPrijavu(1);
 $("#pr-ponisti").onclick = ()=>{ odabir={od:null,do:null}; crtajOdabirKalendar(); crtajSazetak(); };
-$("#mj-prev").onclick = ()=>{ mjMjesec=(mjMjesec+11)%12; crtajMjesec(); crtajMjPrijave(); };
-$("#mj-next").onclick = ()=>{ mjMjesec=(mjMjesec+1)%12; crtajMjesec(); crtajMjPrijave(); };
+$("#mj-prev").onclick = ()=> pomakniPregled(-1);
+$("#mj-next").onclick = ()=> pomakniPregled(1);
 $("#mj-viz").onclick = ()=> postaviPrikaz("viz");
 $("#mj-tab").onclick = ()=> postaviPrikaz("tab");
 $("#mj-ispisSve").onclick = ispisiSveTermine;

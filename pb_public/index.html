@@ -242,6 +242,8 @@
   .kpi.dani div b{font-size:34px;color:var(--accent);font-weight:700;letter-spacing:-.01em}
   .kpi.dani div.ost{background:#e6f3eb;border-color:#c2e0cf;color:var(--ok)}
   .kpi.dani div.ost b{color:var(--ok)}
+  .kpi.dani div.nep{background:#fbf0dc;border-color:#e9d5ab;color:var(--warn)}
+  .kpi.dani div.nep b{color:var(--warn)}
   .kpi.dani div.nema{background:#f9e8e8;border-color:#ebc7c7;color:var(--bad)}
   .kpi.dani div.nema b{color:var(--bad)}
   /* kratke upute uz brojeve dana */
@@ -516,7 +518,7 @@
     <p class="hint">Preneseno = dani iz prošle godine, rok iskorištenja 30.06.</p>
     <table>
       <thead><tr><th>Liječnik</th><th>Pravo</th><th>Preneseno</th><th>Ukupno</th>
-        <th>Potvrđeno</th><th>Čeka</th><th>Neiskorišteno</th><th style="width:120px" class="noprint"></th></tr></thead>
+        <th>Predano</th><th>Nije predano</th><th>Neiskorišteno</th><th style="width:120px" class="noprint"></th></tr></thead>
       <tbody id="stanjeTbody"></tbody>
     </table>
   </div>
@@ -1239,10 +1241,17 @@ function blagdanNaGodisnjem(lijId, g, bl){
 }
 function saldo(l){
   const moje = prijaveGodine(db.godina).filter(p=>p.lijecnikId===l.id);
-  const potvrdeno = moje.filter(p=>p.status==="potvrden").reduce((s,p)=>s+radnihDana(p.od,p.do),0);
-  const ceka = moje.filter(p=>p.status==="ceka").reduce((s,p)=>s+radnihDana(p.od,p.do),0);
+  const dana = f => moje.filter(f).reduce((s,p)=>s+radnihDana(p.od,p.do),0);
+  /* Predano = zaključano, konačno. Nepredano = radna verzija koju liječnik
+     još nije potvrdio; ne zauzima mjesto drugima, ali njemu troši dane —
+     inače bi mogao upisati bezbroj termina. */
+  const predano   = dana(p=>p.status==="potvrden" && p.zakljucana);
+  const nepredano = dana(p=>p.status==="potvrden" && !p.zakljucana);
+  const ceka      = dana(p=>p.status==="ceka");
   const pravo=Number(l.pravoDana)||0, pren=Number(l.preneseniDani)||0, ukupno=pravo+pren;
-  return {pravo,pren,ukupno,potvrdeno,ceka,preostalo:ukupno-potvrdeno-ceka};
+  return {pravo, pren, ukupno, predano, nepredano, ceka,
+          potvrdeno: predano + nepredano,   /* zadržano radi ostalih prikaza */
+          preostalo: ukupno - predano - nepredano - ceka};
 }
 /* Mjesto u limitu zauzima SAMO predani (zaključani) termin.
    Radna verzija koju liječnik još nije potvrdio nikome ne blokira dan —
@@ -1561,7 +1570,8 @@ function crtajPrijavaTab(){
       '<div class="stanjeRed">'+
         '<div class="kpi dani" style="margin:0">'+
         '<div><b>'+s.ukupno+'</b>ukupno dana'+(s.pren?" ("+s.pravo+"+"+s.pren+")":"")+'</div>'+
-        '<div><b>'+(s.potvrdeno+s.ceka)+'</b>iskorišteno</div>'+
+        '<div><b>'+(s.predano+s.ceka)+'</b>predano</div>'+
+        (s.nepredano ? '<div class="nep"><b>'+s.nepredano+'</b>nije predano</div>' : '')+
         '<div class="'+(s.preostalo>0?"ost":"nema")+'"><b>'+s.preostalo+'</b>preostalo</div>'+
         '</div>'+
         '<div class="upute">'+
@@ -1933,7 +1943,7 @@ function crtajStanje(){
   $("#s-lijecnika").textContent = lj.length;
   $("#s-cekaju").textContent = db.prijave.filter(p=>p.status==="ceka").length;
   let up=0, uo=0;
-  lj.forEach(l=>{ const s=saldo(l); up+=s.ukupno; uo+=s.potvrdeno; });
+  lj.forEach(l=>{ const s=saldo(l); up+=s.ukupno; uo+=s.predano; });
   $("#s-iskoristeno").textContent = up?Math.round(uo/up*100)+"%":"0%";
   $("#s-danas").textContent = odsutniNaDan(new Date()).length;
 
@@ -1942,7 +1952,7 @@ function crtajStanje(){
     const s=saldo(l);
     if(s.pren>0 && danas.getMonth()>=3 && danas.getMonth()<=5)
       u.push(['warn', esc(l.ime)+" ima "+s.pren+" prenesenih dana — rok je 30.06."]);
-    if(s.potvrdeno===0 && s.ceka===0 && s.ukupno>0 && danas.getMonth()>=5)
+    if(s.predano===0 && s.nepredano===0 && s.ceka===0 && s.ukupno>0 && danas.getMonth()>=5)
       u.push(['warn', esc(l.ime)+" još nije prijavio/la nijedan godišnji za "+db.godina+"."]);
     if(s.preostalo<0) u.push(['bad', esc(l.ime)+" je u minusu "+Math.abs(s.preostalo)+" dana."]);
   });
@@ -1969,7 +1979,9 @@ function crtajStanje(){
     return '<tr><td>'+tockica(l.id)+'<b>'+esc(l.ime)+'</b>'+
       (zakljucan(l.id)?' <span class="pill p-lock">zaključano</span>':'')+'</td>'+
       '<td>'+s.pravo+'</td><td>'+(s.pren||"—")+'</td><td><b>'+s.ukupno+'</b></td>'+
-      '<td>'+s.potvrdeno+'</td><td>'+(s.ceka||"—")+'</td>'+
+      '<td>'+(s.predano||"—")+'</td>'+
+      '<td'+(s.nepredano?' style="color:var(--warn);font-weight:650"':'')+'>'+
+        (s.nepredano||"—")+'</td>'+
       '<td><span class="pill '+(s.preostalo<0?"p-bad":s.preostalo===0?"p-neutral":"p-ok")+'">'+
       s.preostalo+'</span></td>'+
       '<td class="noprint"><button class="btn sm ghost" onclick="ispisiTermine(\''+l.id+'\')">Ispiši</button></td></tr>';
@@ -3411,7 +3423,7 @@ window.addEventListener("pagehide", ()=>{ odjavaSakriveno = Date.now(); });
 window.addEventListener("pageshow", e=>{ if(e.persisted) odjavaProvjeriPovratak(); });
 
 /* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
-const INACICA = "1.3";
+const INACICA = "1.4";
 function osvjeziNapomenu(){
   $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =

@@ -828,10 +828,12 @@
   <div class="grid g2">
     <div class="card">
       <h2>Podaci</h2>
-      <p class="hint">Podaci se čuvaju u pregledniku ovog računala. Izvoz je vaša sigurnosna kopija i način prijenosa.</p>
+      <p class="hint">Izvoz je vaša sigurnosna kopija u jednoj datoteci. Uvoz je vraća —
+        liječnici se prepoznaju po korisničkom imenu, postojeće se dopunjuje, ništa se ne briše.
+        Za potpunu kopiju baze i dalje postoji <b>Settings → Backups</b> u PocketBaseu.</p>
       <div class="toolbar">
         <button class="btn" id="izvoz">Izvezi (.json)</button>
-        <button class="btn ghost" id="uvozBtn">Uvezi</button>
+        <button class="btn ghost" id="uvozBtn">Uvezi (.json)</button>
         <input type="file" id="uvoz" accept=".json" style="display:none">
       </div>
       <div class="toolbar">
@@ -843,6 +845,11 @@
         <button class="btn ghost" id="uvozEdu">Uvezi edukacije iz 2026.</button>
       </div>
       <div id="pod-poruka"></div>
+
+      <h2 style="margin-top:20px">Po dijelovima</h2>
+      <p class="hint">Kad ne treba sve. Svaki dio se izvozi i vraća zasebno; datoteka nosi
+        i vezu na korisnička imena, pa se zapisi znaju prevezati na prave ljude.</p>
+      <div id="dijeloviTablica"></div>
       <div class="msg m-warn">Prije unosa stvarnih imena uključite IT službu i službenika za zaštitu podataka — riječ je o osobnim podacima.</div>
     </div>
     <div class="card">
@@ -2718,6 +2725,7 @@ function uredipolje(i, os, vr){
 }
 function crtajPostavke(){
   crtajOdjavu();
+  crtajDijelove();
   $("#p-podlogaBtn").onclick = ()=> $("#p-podloga").click();
   $("#p-podloga").onchange = async e=>{
     const f = e.target.files[0]; e.target.value="";
@@ -3427,7 +3435,7 @@ window.addEventListener("pagehide", ()=>{ odjavaSakriveno = Date.now(); });
 window.addEventListener("pageshow", e=>{ if(e.persisted) odjavaProvjeriPovratak(); });
 
 /* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
-const INACICA = "1.5";
+const INACICA = "1.7";
 function osvjeziNapomenu(){
   $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =
@@ -3570,16 +3578,223 @@ $("#l-ime").onblur = ()=>{
   if(!$("#l-korisnik").value.trim() && $("#l-ime").value.trim())
     $("#l-korisnik").value = prijedlogKorisnika($("#l-ime").value);
 };
-$("#izvoz").onclick = ()=>{
-  const b=new Blob([JSON.stringify(db,null,2)],{type:"application/json"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(b);
-  a.download="godisnji-anestezija-"+db.godina+"-"+iso(new Date())+".json";
+/* ==========================================================
+   IZVOZ I UVOZ
+   Izvozi se cjelina ili pojedini dio. Svaki izvoz nosi i popis veza
+   (oznaka zapisa → korisničko ime), jer oznake iz jedne baze u drugoj
+   ne vrijede. Pri uvozu se liječnici prepoznaju po korisničkom imenu,
+   a termini, izuzeci i edukacije se prevežu na njih.
+   Postojeće se dopunjuje, ništa se ne briše i ništa se ne dvostruči.
+   ŠIFRE se ne izvoze i pri uvozu se ne diraju — samo liječnik kojeg u
+   bazi uopće nema dobiva novu, slučajnu, i ona se ispiše nakon uvoza.
+   ========================================================== */
+const DIJELOVI = {
+  lijecnici: {n:"Liječnici",          o:"imena, skupine, pravo dana"},
+  prijave:   {n:"Termini godišnjih",  o:"svi upisani i predani termini"},
+  izuzeci:   {n:"Izuzeci s rasporeda",o:"svi mjeseci"},
+  edukacije: {n:"Edukacije",          o:"sve godine"}
+};
+
+const popisVeza = () => db.lijecnici.map(l=>({id:l.id, korisnik:l.korisnik}));
+
+function spremiDatoteku(obj, ime){
+  const b = new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(b); a.download = ime;
   a.click(); URL.revokeObjectURL(a.href);
+}
+
+$("#izvoz").onclick = async ()=>{
+  const d = Object.assign({}, db);
+  try{
+    d.izuzeci   = (await PB.svi("izuzeci")).map(x=>({id:x.id, lijecnikId:x.lijecnik,
+                    mjesec:x.mjesec, tekst:x.tekst}));
+    d.edukacije = (await PB.svi("edukacije")).map(x=>({id:x.id, lijecnikId:x.lijecnik,
+                    godina:x.godina, mjesec:x.mjesec, tekst:x.tekst}));
+  }catch(e){}
+  d.veze = popisVeza(); d.izvezeno = iso(new Date());
+  spremiDatoteku(d, "portal-sve-"+iso(new Date())+".json");
+  poruka($("#pod-poruka"),"Izvezeno sve: "+db.lijecnici.length+" liječnika, "+
+    db.prijave.length+" termina, "+d.izuzeci.length+" izuzetaka, "+
+    d.edukacije.length+" edukacija.","ok");
 };
-$("#uvozBtn").onclick = ()=>{
-  poruka($("#pod-poruka"),"U mrežnoj inačici podaci se ne uvoze ovdje. Cjelovita sigurnosna "+
-    "kopija radi se u PocketBaseu (Settings → Backups), i odande se i vraća.","warn");
+
+async function izveziDio(vrsta){
+  if(!DIJELOVI[vrsta]) return;
+  const d = {verzija:db.verzija, godina:db.godina, vrsta,
+             izvezeno:iso(new Date()), veze:popisVeza()};
+  let koliko = 0;
+  try{
+    if(vrsta==="lijecnici"){ d.lijecnici = db.lijecnici; koliko = d.lijecnici.length; }
+    if(vrsta==="prijave"){   d.prijave   = db.prijave;   koliko = d.prijave.length; }
+    if(vrsta==="izuzeci"){
+      d.izuzeci = (await PB.svi("izuzeci")).map(x=>({id:x.id, lijecnikId:x.lijecnik,
+                    mjesec:x.mjesec, tekst:x.tekst}));
+      koliko = d.izuzeci.length;
+    }
+    if(vrsta==="edukacije"){
+      d.edukacije = (await PB.svi("edukacije")).map(x=>({id:x.id, lijecnikId:x.lijecnik,
+                      godina:x.godina, mjesec:x.mjesec, tekst:x.tekst}));
+      koliko = d.edukacije.length;
+    }
+  }catch(e){ poruka($("#pod-poruka"),"Izvoz nije uspio: "+e.message,"bad"); return; }
+  spremiDatoteku(d, "portal-"+vrsta+"-"+iso(new Date())+".json");
+  poruka($("#pod-poruka"),"Izvezeno: <b>"+koliko+"</b> — "+DIJELOVI[vrsta].n+".","ok");
+}
+
+/* Vraćanje. `samo` je null (sve što datoteka nosi) ili naziv jednog dijela. */
+async function vratiIzKopije(d, samo){
+  const br = {lj:0, ljNovi:0, pr:0, iz:0, ed:0, presk:0};
+  const pali = [];
+  const radi = v => !samo || samo===v;
+
+  /* Veza stara oznaka → korisničko ime. Uzima se iz `veze`, a ako toga nema
+     (starije datoteke), iz samog popisa liječnika. */
+  const veze = {};
+  ((d.veze && d.veze.length) ? d.veze : (d.lijecnici||[]))
+    .forEach(v=>{ if(v && v.id) veze[v.id] = normKor(v.korisnik); });
+
+  /* --- liječnici --- */
+  if(radi("lijecnici") && Array.isArray(d.lijecnici)){
+    for(const l of d.lijecnici){
+      const kor = normKor(l.korisnik);
+      if(!kor){ pali.push((l.ime||"bez imena")+" — nema korisničkog imena"); continue; }
+      const postoji = db.lijecnici.find(x=> normKor(x.korisnik)===kor);
+      const polja = {name:l.ime, zvanje:l.zvanje||"", skupina:Number(l.skupina)||1,
+        pravoDana:Number(l.pravoDana)||0, preneseniDani:Number(l.preneseniDani)||0,
+        otvoreno:!!l.otvoreno, aktivan:l.aktivan!==false, voditelj:!!l.voditelj};
+      try{
+        if(postoji){ await PB.azuriraj("users", postoji.id, polja); br.lj++; }
+        else{
+          const sifra = "pula"+String(1000+Math.floor(Math.random()*9000));
+          const r = await PB.stvori("users", Object.assign({username:kor,
+            password:sifra, passwordConfirm:sifra, emailVisibility:false}, polja));
+          db.lijecnici.push(izBazeLijecnik(r)); br.ljNovi++;
+          pali.push("NOVI: "+esc(l.ime)+" — početna šifra <b>"+sifra+"</b>");
+        }
+      }catch(err){ pali.push(esc(l.ime||kor)+" — "+err.message); }
+    }
+  }
+
+  /* nakon eventualnog dodavanja liječnika: korisničko ime → sadašnja oznaka */
+  const poKorisniku = {};
+  db.lijecnici.forEach(l=>{ poKorisniku[normKor(l.korisnik)] = l.id; });
+  const novi = staraOznaka => poKorisniku[veze[staraOznaka]] || null;
+  let nenadeni = 0;
+
+  /* --- termini --- */
+  if(radi("prijave") && Array.isArray(d.prijave)){
+    for(const t of d.prijave){
+      const id = novi(t.lijecnikId); if(!id){ nenadeni++; continue; }
+      if(db.prijave.some(x=> x.lijecnikId===id && x.od===t.od && x.do===t.do)){ br.presk++; continue; }
+      try{
+        const r = await PB.stvori("prijave", uBazuPrijava({lijecnikId:id, od:t.od, do:t.do,
+          status:t.status||"potvrden", zakljucana:t.zakljucana!==false,
+          automatski:!!t.automatski, raniji:!!t.raniji}));
+        db.prijave.push(izBazePrijava(r)); br.pr++;
+      }catch(err){ pali.push("termin "+hr(t.od)+" — "+err.message); }
+    }
+  }
+
+  /* --- izuzeci --- */
+  if(radi("izuzeci") && Array.isArray(d.izuzeci)){
+    let svi = []; try{ svi = await PB.svi("izuzeci"); }catch(e){}
+    for(const x of d.izuzeci){
+      const id = novi(x.lijecnikId); if(!id){ nenadeni++; continue; }
+      if(svi.some(y=> y.lijecnik===id && y.mjesec===x.mjesec && y.tekst===x.tekst)){ br.presk++; continue; }
+      try{ svi.push(await PB.stvori("izuzeci", {lijecnik:id, mjesec:x.mjesec, tekst:x.tekst})); br.iz++; }
+      catch(err){ pali.push("izuzetak "+x.mjesec+" — "+err.message); }
+    }
+  }
+
+  /* --- edukacije --- */
+  if(radi("edukacije") && Array.isArray(d.edukacije)){
+    let sve = []; try{ sve = await PB.svi("edukacije"); }catch(e){}
+    for(const x of d.edukacije){
+      const id = novi(x.lijecnikId); if(!id){ nenadeni++; continue; }
+      if(sve.some(y=> y.lijecnik===id && Number(y.godina)===Number(x.godina) &&
+                      Number(y.mjesec)===Number(x.mjesec))){ br.presk++; continue; }
+      try{ sve.push(await PB.stvori("edukacije", {lijecnik:id, godina:Number(x.godina),
+        mjesec:Number(x.mjesec), tekst:x.tekst})); br.ed++; }
+      catch(err){ pali.push("edukacija "+x.godina+"/"+x.mjesec+" — "+err.message); }
+    }
+  }
+
+  /* --- postavke, samo pri vraćanju cjeline --- */
+  if(!samo && d.postavke &&
+     confirm("Vratiti i postavke (limiti, posebna razdoblja, razdoblje korištenja)?\n"+
+             "Time se prebrisuju postavke koje su sada u bazi.")){
+    db.postavke = Object.assign(zadanePostavke(), d.postavke);
+    if(d.godina) db.godina = Number(d.godina)||db.godina;
+    ispraviPostavke(); spremi();
+  }
+
+  await ucitajIzBaze();
+  prGodina = 0; odabir = {od:null, do:null};
+  crtajSve();
+
+  const dio = [];
+  if(br.lj || br.ljNovi) dio.push("liječnika dopunjeno "+br.lj+(br.ljNovi?", novih "+br.ljNovi:""));
+  if(br.pr) dio.push("termina "+br.pr);
+  if(br.iz) dio.push("izuzetaka "+br.iz);
+  if(br.ed) dio.push("edukacija "+br.ed);
+  let t = dio.length ? "Vraćeno — "+dio.join(", ")+"." : "Nije vraćeno ništa novo.";
+  if(br.presk)   t += " Preskočeno kao postojeće: "+br.presk+".";
+  if(nenadeni)   t += " <b>Nije nađen liječnik za "+nenadeni+" zapisa</b> — prvo uvezite liječnike.";
+  if(pali.length) t += "<br><br>"+pali.join("<br>");
+  poruka($("#pod-poruka"), t, (pali.length||nenadeni) ? "warn" : "ok");
+}
+
+/* Jedno polje za odabir datoteke, a koji se dio vraća pamti se u njemu. */
+$("#uvozBtn").onclick = ()=>{ if(!jeAdmin) return;
+  $("#uvoz").dataset.dio = ""; $("#uvoz").click(); };
+function uveziDio(vrsta){ if(!jeAdmin) return;
+  $("#uvoz").dataset.dio = vrsta; $("#uvoz").click(); }
+
+$("#uvoz").onchange = async e=>{
+  const f = e.target.files[0];
+  const samo = $("#uvoz").dataset.dio || null;
+  e.target.value = "";
+  if(!f || !jeAdmin) return;
+  let d;
+  try{ d = JSON.parse(await f.text()); }
+  catch(err){ poruka($("#pod-poruka"),"Datoteka nije čitljiva: "+err.message,"bad"); return; }
+  if(!d || typeof d!=="object"){
+    poruka($("#pod-poruka"),"To nije izvoz iz portala.","bad"); return; }
+  if(samo && !Array.isArray(d[samo])){
+    poruka($("#pod-poruka"),"U datoteci nema dijela <b>"+DIJELOVI[samo].n+
+      "</b>. Ona sadrži: "+Object.keys(DIJELOVI).filter(k=>Array.isArray(d[k]))
+      .map(k=>DIJELOVI[k].n).join(", ")+".","bad"); return; }
+  if(!samo && !["lijecnici","prijave","izuzeci","edukacije"].some(k=>Array.isArray(d[k]))){
+    poruka($("#pod-poruka"),"Datoteka ne sadrži nijedan poznati dio.","bad"); return; }
+
+  const sto = samo ? DIJELOVI[samo].n+" ("+d[samo].length+")"
+    : Object.keys(DIJELOVI).filter(k=>Array.isArray(d[k]))
+        .map(k=>DIJELOVI[k].n+" ("+d[k].length+")").join(", ");
+  if(!confirm("VRAĆANJE IZ DATOTEKE\n\nVraća se: "+sto+"\n\n"+
+    "Liječnici se prepoznaju po korisničkom imenu. Postojeće se dopunjuje, "+
+    "ništa se ne briše, šifre se ne diraju.\n\nNastaviti?")) return;
+
+  const gumbi = $$("#tab-postavke button"); gumbi.forEach(g=>g.disabled=true);
+  poruka($("#pod-poruka"),"Vraćam podatke…","info");
+  try{ await vratiIzKopije(d, samo); }
+  catch(err){ poruka($("#pod-poruka"),"Vraćanje nije dovršeno: "+err.message,"bad"); }
+  finally{ gumbi.forEach(g=>g.disabled=false); }
 };
+
+function crtajDijelove(){
+  const el = $("#dijeloviTablica"); if(!el) return;
+  el.innerHTML = '<table><tbody>'+ Object.keys(DIJELOVI).map(k=>{
+    const d = DIJELOVI[k];
+    return '<tr><td><b>'+esc(d.n)+'</b><div class="hint" style="margin:2px 0 0">'+
+      esc(d.o)+'</div></td>'+
+      '<td style="width:210px" class="noprint">'+
+      '<button class="btn sm ghost" onclick="izveziDio(\''+k+'\')">Izvezi</button> '+
+      '<button class="btn sm ghost" onclick="uveziDio(\''+k+'\')">Uvezi</button></td></tr>';
+  }).join("")+'</tbody></table>';
+}
+
+
 $("#brisi").onclick = async ()=>{
   if(!jeAdmin) return;
   if(!confirm("Ovo briše SVE termine i dežurstva iz baze. Liječnici i postavke ostaju.\n\nNastaviti?")) return;

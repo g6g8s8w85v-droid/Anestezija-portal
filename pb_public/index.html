@@ -445,11 +445,13 @@
         <span><i style="background:var(--tight);border-color:var(--tight-b)"></i>zadnje mjesto</span>
         <span><i style="background:var(--full);border-color:var(--full-b)"></i>popunjeno</span>
         <span><i style="background:var(--mine);border-color:var(--mine-b)"></i>vaš termin</span>
-        <span><i style="background:var(--mine);border-color:var(--mine-b);background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.75) 0 3px,transparent 3px 6px)"></i>nije predano</span>
+        <span><i style="background:var(--mine);border-color:var(--mine-b);border-style:dashed;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.75) 0 3px,transparent 3px 6px)"></i>vaš, nije predan</span>
         <span><i style="background:#eef1f4"></i>vikend</span>
         <span><i style="background:#fbe7e7"></i>blagdan</span>
       </div>
-      <p class="hint" style="margin-top:10px">Mali broj u kućici pokazuje koliko je liječnika odsutno naspram dopuštenog za taj dan.</p>
+      <p class="hint" style="margin-top:10px">Mali broj u kućici pokazuje koliko je liječnika odsutno
+        naspram dopuštenog za taj dan. Mjesto je vaše čim termin upišete, ali dok ga ne predate
+        gumbom <b>Potvrdi sve i zaključaj</b> nije konačan.</p>
       <div id="pr-razdoblja"></div>
     </div>
 
@@ -1253,12 +1255,13 @@ function saldo(l){
           potvrdeno: predano + nepredano,   /* zadržano radi ostalih prikaza */
           preostalo: ukupno - predano - nepredano - ceka};
 }
-/* Mjesto u limitu zauzima SAMO predani (zaključani) termin.
-   Radna verzija koju liječnik još nije potvrdio nikome ne blokira dan —
-   ostaje samo vidljiva, da voditelj zna da netko nije dovršio upis. */
+/* Mjesto u limitu zauzima SVAKI upisani termin, i prije zaključavanja.
+   Namjerno: kad radna verzija ne bi držala mjesto, petero ljudi moglo bi se
+   upisati na tri mjesta i sukob bi pao na voditelja, i to tek na kraju.
+   Bolje je da računalo odbije četvrtog odmah nego da se poslije posreduje. */
 function odsutniNaDan(d, izuzmiPrijavuId){
   const s=iso(d);
-  return [...new Set(db.prijave.filter(p=> zive(p) && p.zakljucana && p.id!==izuzmiPrijavuId &&
+  return [...new Set(db.prijave.filter(p=> zive(p) && p.id!==izuzmiPrijavuId &&
     s>=p.od && s<=p.do).map(p=>p.lijecnikId))];
 }
 /* Tko na taj dan ima upisan, ali nepredan termin. */
@@ -1620,9 +1623,9 @@ function crtajOdabirKalendar(){
       sub = st.broj+"/"+st.limit;
       const op = opisLimita(d);
       if(op) naslov += " — "+op+" (najviše "+st.limit+")";
-      if(st.moj){ cls+=" moj"; klik=false; naslov+=" — vaš predani termin"; }
-      else if(st.mojNepredan){ cls+=" moj nepredan"; klik=false;
-        naslov+=" — vaš termin, još nije predan"; }
+      if(st.mojNepredan){ cls+=" moj nepredan"; klik=false;
+        naslov+=" — vaš termin, mjesto je vaše, ali ga još niste predali"; }
+      else if(st.moj){ cls+=" moj"; klik=false; naslov+=" — vaš predani termin"; }
       else if(!lijId){ naslov+=" — odsutnih "+st.broj+" od "+st.limit; }
       else if(st.drugi >= st.limit){ cls+=" puno"; klik=false; naslov+=" — popunjeno ("+st.drugi+"/"+st.limit+")"; }
       else if(st.zadnje){ cls+=" zadnje"; naslov+=" — zadnje slobodno mjesto"; }
@@ -1873,9 +1876,10 @@ function crtajMjesec(){
   dani.forEach(d=>{
     if(!jeRadni(d)){ h+='<td class="'+klasa(d)+'"></td>'; return; }
     const n = odsutniNaDan(d).length, np = nepredaniNaDan(d).length;
-    const t = (n||np) ? (n||0)+(np?'<span style="color:var(--muted)">+'+np+'</span>':'') : "";
     h += '<td'+(n>limitZa(d)?' class="prek"':'')+' title="'+
-         esc("predano: "+n+(np?", nije predano: "+np:""))+'">'+t+'</td>';
+         esc("odsutnih "+n+" od "+limitZa(d)+
+             (np ? " · od toga "+np+" još nije predano" : ""))+'">'+
+         (n||"")+(np?'<span style="color:var(--warn)">*</span>':'')+'</td>';
   });
   h += '</tr></tbody></table>';
   cilj.innerHTML = h;
@@ -3423,7 +3427,7 @@ window.addEventListener("pagehide", ()=>{ odjavaSakriveno = Date.now(); });
 window.addEventListener("pageshow", e=>{ if(e.persisted) odjavaProvjeriPovratak(); });
 
 /* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
-const INACICA = "1.4";
+const INACICA = "1.5";
 function osvjeziNapomenu(){
   $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =

@@ -324,9 +324,9 @@
     <h2>Portal Odjela za anesteziologiju, reanimatologiju, intenzivnu medicinu i liječenje boli</h2>
     <div class="pod">Opća bolnica Pula</div>
     <label>Korisničko ime</label>
-    <input type="text" id="lg-korisnik" maxlength="30" placeholder="npr. m.peric" autocomplete="username">
+    <input type="text" id="lg-korisnik" maxlength="30" autocomplete="username">
     <label>Šifra</label>
-    <input type="password" id="lg-sifra" placeholder="šifra" autocomplete="current-password">
+    <input type="password" id="lg-sifra" autocomplete="current-password">
     <button class="btn big" id="lg-ulaz">Prijavi se</button>
     <div id="lg-poruka"></div>
     <div class="nap" id="lg-napomena"></div>
@@ -3177,6 +3177,49 @@ $("#pr-lijecnik").onchange = e=>{
   odabir={od:null,do:null}; crtajSve();
 };
 
+/* ==========================================================
+   PAMĆENJE PRIJAVE UNUTAR KARTICE
+   Osvježavanje stranice ne smije izbaciti čovjeka usred posla, ali
+   zatvaranje kartice mora. Zato ide u sessionStorage, koji živi točno
+   toliko koliko i kartica, i uz vrijeme zadnjeg dodira — pa vrijedi ista
+   granica kao za automatsku odjavu.
+   ========================================================== */
+const KLJUC_SESIJE = "portal-prijava";
+
+function zapamtiPrijavu(){
+  if(!sesija || !PB.token) return;
+  try{ sessionStorage.setItem(KLJUC_SESIJE, JSON.stringify({
+    token: PB.token, kad: Date.now(),
+    minuta: Number(db.postavke.odjavaMinuta)||0
+  })); }catch(e){}
+}
+function zaboraviPrijavu(){ try{ sessionStorage.removeItem(KLJUC_SESIJE); }catch(e){} }
+
+/* Pokušaj nastaviti tamo gdje je stao. Vraća true ako je uspjelo. */
+async function nastaviPrijavu(){
+  let z = null;
+  try{ z = JSON.parse(sessionStorage.getItem(KLJUC_SESIJE) || "null"); }catch(e){}
+  if(!z || !z.token) return false;
+  if(z.minuta && Date.now() - z.kad > z.minuta*60000){ zaboraviPrijavu(); return false; }
+  PB.token = z.token;
+  let odg;
+  try{
+    odg = await PB.zovi("/api/collections/users/auth-refresh", {method:"POST"});
+  }catch(e){ PB.token=""; zaboraviPrijavu(); return false; }
+  if(!odg || !odg.record || odg.record.aktivan===false){
+    PB.token=""; zaboraviPrijavu(); return false; }
+  PB.token = odg.token; PB.ja = odg.record;
+  try{ await ucitajIzBaze(); }
+  catch(e){ PB.token=""; zaboraviPrijavu(); return false; }
+  sesija = odg.record.voditelj ? {tip:"admin", id:odg.record.id}
+                               : {tip:"lijecnik", id:odg.record.id};
+  jeAdmin = sesija.tip==="admin"; gledamKao = null;
+  document.body.classList.remove("odjavljen");
+  odabir={od:null,do:null};
+  puniGodine(); crtajSve(); pokreniPovijest(); otvoriPocetnu(); odjavaPokreni();
+  return true;
+}
+
 /* ---- prijava u sustav ---- */
 async function ulaz(){
   const g = $("#lg-ulaz"); if(g.disabled) return;
@@ -3190,10 +3233,12 @@ async function ulaz(){
     document.body.classList.remove("odjavljen");
     odabir={od:null,do:null};
     puniGodine(); crtajSve(); pokreniPovijest(); otvoriPocetnu(); odjavaPokreni();
+    zapamtiPrijavu();
   } finally { g.disabled = false; g.textContent = "Prijavi se"; }
 }
 function odjava(){
   odjavaZaustavi();
+  zaboraviPrijavu();
   povijestRadi = false;
   sesija=null; jeAdmin=false; gledamKao=null; odabir={od:null,do:null};
   PB.token=""; PB.ja=null;
@@ -3220,8 +3265,12 @@ let odjavaSakriveno = null;        /* trenutak kad je kartica otišla u pozadinu
 
 const odjavaGranicaMs = () => (Number(db.postavke.odjavaMinuta)||0) * 60000;
 
+let odjavaZadnjiZapis = 0;
 function odjavaDodir(){
   odjavaZadnjiDodir = Date.now();
+  if(sesija && odjavaZadnjiDodir - odjavaZadnjiZapis > 20000){
+    odjavaZadnjiZapis = odjavaZadnjiDodir; zapamtiPrijavu();
+  }
   if(odjavaOdbrojava){ odjavaOdbrojava = 0; $("#odjavaOkvir").classList.remove("open"); }
 }
 
@@ -3284,7 +3333,7 @@ window.addEventListener("pagehide", ()=>{ odjavaSakriveno = Date.now(); });
 window.addEventListener("pageshow", e=>{ if(e.persisted) odjavaProvjeriPovratak(); });
 
 /* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
-const INACICA = "1.1";
+const INACICA = "1.2";
 function osvjeziNapomenu(){
   $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =
@@ -3486,7 +3535,8 @@ $("#obr-izradi").onclick = ()=>{
   d.polja.forEach(f=>{
     if(f.auto){
       v[f.k] = f.auto==="ime"   ? (l?l.ime:"")
-             : f.auto==="sluzba"? (db.postavke.sluzba||"")
+             /* ako služba nije zasebno upisana, na obrazac ide odjel */
+             : f.auto==="sluzba"? (db.postavke.sluzba || db.postavke.odjel || "")
              : f.auto==="odjel" ? (db.postavke.odjel||"") : "";
       return;
     }
@@ -3636,6 +3686,7 @@ prGodina = db.godina;
 postaviPrikaz("viz");
 osvjeziNapomenu();
 crtajSve();
+nastaviPrijavu();
 </script>
 </body>
 </html>

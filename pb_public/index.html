@@ -1219,7 +1219,8 @@ const BLAGDANI_ARHIVA = [
   {kljuc:"rad",     naziv:"Praznik rada",       dani:g=>[g+"-05-01"]},
   {kljuc:"badnjak", naziv:"Badnjak",            dani:g=>[g+"-12-24"]},
   {kljuc:"bozic",   naziv:"Božić",              dani:g=>[g+"-12-25"]},
-  {kljuc:"stjepan", naziv:"Sveti Stjepan",      dani:g=>[g+"-12-26"]}
+  {kljuc:"stjepan", naziv:"Sveti Stjepan",      dani:g=>[g+"-12-26"]},
+  {kljuc:"docek",   naziv:"Doček Nove godine",  dani:g=>[g+"-12-31"]}
 ];
 const ARHIVA_GODINA = 5;
 /* Prikaz u arhivi: pet godina unatrag, zaključno s tekućom. */
@@ -3517,7 +3518,7 @@ window.addEventListener("pagehide", ()=>{ odjavaSakriveno = Date.now(); });
 window.addEventListener("pageshow", e=>{ if(e.persisted) odjavaProvjeriPovratak(); });
 
 /* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
-const INACICA = "2.0";
+const INACICA = "2.1";
 function osvjeziNapomenu(){
   $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =

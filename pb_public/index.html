@@ -638,6 +638,17 @@
   </div>
 
   <div class="card noprint" data-admin="1">
+    <h2>Upis blagdana provedenih na godišnjem</h2>
+    <p class="hint">Upisuje se ručno, kao i dežurstva. Blagdan često padne na vikend, pa tko
+      uzme godišnji od ponedjeljka nije „bio na godišnjem na Božić" iako je jednako bio
+      pošteđen — to aplikacija ne može pogoditi iz termina, a za pravednost unatrag je bitno.</p>
+    <div class="row" style="max-width:220px">
+      <div><label>Godina</label><select id="gb-godina"></select></div>
+    </div>
+    <table id="gbTablica" style="margin-top:10px"></table>
+  </div>
+
+  <div class="card noprint" data-admin="1">
     <h2>Upis ranijeg godišnjeg</h2>
     <p class="hint">Za godine prije uvođenja aplikacije. Upisuje se izravno u arhivu, bez provjere limita.</p>
     <div class="row" style="max-width:640px">
@@ -1198,17 +1209,31 @@ function prijaveMjeseca(g,m){
    ARHIVA
    ========================================================== */
 /* Blagdani koji se posebno prate — oni oko kojih se lome termini. */
+/* Svaki blagdanski dan zasebno — jer se i dežurstvo i pošteda vežu uz
+   pojedini dan, ne uz skupinu dana. Ključevi „nova", „uskrs", „rad" i
+   „bozic" zadržani su iz ranijih upisa, da se ne izgube. */
 const BLAGDANI_ARHIVA = [
-  {kljuc:"nova",  naziv:"Nova godina",  dani:g=>[g+"-01-01"]},
-  {kljuc:"uskrs", naziv:"Uskrs",        dani:g=>[iso(uskrs(g)), iso(pomak(uskrs(g),1))]},
-  {kljuc:"rad",   naziv:"Praznik rada", dani:g=>[g+"-05-01"]},
-  {kljuc:"bozic", naziv:"Božić",        dani:g=>[g+"-12-25", g+"-12-26"]}
+  {kljuc:"nova",    naziv:"Nova godina",        dani:g=>[g+"-01-01"]},
+  {kljuc:"uskrs",   naziv:"Uskrs",              dani:g=>[iso(uskrs(g))]},
+  {kljuc:"uskrsp",  naziv:"Uskrsni ponedjeljak",dani:g=>[iso(pomak(uskrs(g),1))]},
+  {kljuc:"rad",     naziv:"Praznik rada",       dani:g=>[g+"-05-01"]},
+  {kljuc:"badnjak", naziv:"Badnjak",            dani:g=>[g+"-12-24"]},
+  {kljuc:"bozic",   naziv:"Božić",              dani:g=>[g+"-12-25"]},
+  {kljuc:"stjepan", naziv:"Sveti Stjepan",      dani:g=>[g+"-12-26"]}
 ];
 const ARHIVA_GODINA = 5;
-/* Uvijek pet godina unatrag, zaključno s tekućom. */
+/* Prikaz u arhivi: pet godina unatrag, zaključno s tekućom. */
 function arhivaGodine(){
   const out=[];
   for(let g=db.godina-ARHIVA_GODINA+1; g<=db.godina; g++) out.push(g);
+  return out;
+}
+/* Upis dežurstava i blagdana: pet unatrag i petnaest unaprijed, jer se
+   raspored zna dogovarati i za godine koje tek dolaze. */
+const UPIS_UNAPRIJED = 15;
+function godineZaUpis(){
+  const out=[];
+  for(let g=db.godina-ARHIVA_GODINA+1; g<=db.godina+UPIS_UNAPRIJED; g++) out.push(g);
   return out;
 }
 /* --- dežurstva na blagdane (ručni upis, aplikacija ih ne može znati) --- */
@@ -1233,6 +1258,18 @@ function skiniDezurstvo(g,kljuc,lijId){
   spremi();
 }
 const jeDezurao = (lijId,g,kljuc) => dezurni(g,kljuc).includes(lijId);
+
+/* --- blagdan proveden na godišnjem ---
+   Aplikacija to pokušava zaključiti sama, iz termina koji pokrivaju sam
+   blagdanski datum. Ali blagdan često padne na vikend, pa tko uzme godišnji
+   od ponedjeljka nije "bio na godišnjem na Božić" iako je jednako bio
+   pošteđen. Zato voditelj to može i ručno označiti.
+   Čuva se u istoj zbirci kao dežurstva, s predznakom "go:" u ključu. */
+const GO_PREDZNAK = "go:";
+const goKljuc = kljuc => GO_PREDZNAK + kljuc;
+const goRucno = (g,kljuc) => db.dezurstva[dezKljuc(g, goKljuc(kljuc))] || [];
+function dodajGoBlagdan(g,kljuc,lijId){ dodajDezurstvo(g, goKljuc(kljuc), lijId); }
+function skiniGoBlagdan(g,kljuc,lijId){ skiniDezurstvo(g, goKljuc(kljuc), lijId); }
 function terminiGodine(lijId, g){
   return db.prijave.filter(p=> p.lijecnikId===lijId && zive(p) && uSezoni(p,g))
     .sort((a,b)=>a.od.localeCompare(b.od));
@@ -1243,10 +1280,12 @@ function kratkiRaspon(od,do_){
   const dm = d => d.getDate()+"."+(d.getMonth()+1)+".";
   return dm(a)+" – "+dm(b)+(a.getFullYear()!==b.getFullYear() ? b.getFullYear()+"." : "");
 }
-/* Je li liječnik taj blagdan bio na godišnjem. */
+/* Je li liječnik taj blagdan proveo na godišnjem.
+   Isključivo po upisu voditelja. Nekad se to pokušavalo zaključiti iz termina,
+   ali blagdan često padne na vikend — tko uzme godišnji od ponedjeljka bio je
+   jednako pošteđen, a termin to ne pokazuje. Zato se upisuje ručno. */
 function blagdanNaGodisnjem(lijId, g, bl){
-  return bl.dani(g).some(d => db.prijave.some(p =>
-    p.lijecnikId===lijId && zive(p) && d>=p.od && d<=p.do));
+  return goRucno(g, bl.kljuc).includes(lijId);
 }
 function saldo(l){
   const moje = prijaveGodine(db.godina).filter(p=>p.lijecnikId===l.id);
@@ -2515,10 +2554,15 @@ function crtajArhivu(){
     lj.map(l=>'<option value="'+l.id+'">'+esc(l.ime)+'</option>').join("");
   if(prije && lj.some(l=>l.id===prije)) sel.value = prije;
 
-  const gs = $("#dz-godina"), prijeG = gs.value;
-  gs.innerHTML = godine.slice().reverse().map(g=>'<option value="'+g+'">'+g+'.</option>').join("");
-  gs.value = (prijeG && godine.includes(Number(prijeG))) ? prijeG : String(db.godina);
-  crtajDezurstva();
+  const zaUpis = godineZaUpis();
+  const puniGod = id => {
+    const el = $(id); if(!el) return;
+    const prijeG = el.value;
+    el.innerHTML = zaUpis.slice().reverse().map(g=>'<option value="'+g+'">'+g+'.</option>').join("");
+    el.value = (prijeG && zaUpis.includes(Number(prijeG))) ? prijeG : String(db.godina);
+  };
+  puniGod("#dz-godina"); puniGod("#gb-godina");
+  crtajDezurstva(); crtajGoBlagdane();
 }
 
 /* Uređivanje dežurstava za odabranu godinu. */
@@ -2551,6 +2595,44 @@ function dodajDez(kljuc,lijId){
 function skiniDez(kljuc,lijId){
   skiniDezurstvo(Number($("#dz-godina").value)||db.godina, kljuc, lijId);
   crtajArhivu();
+}
+
+/* Blagdani provedeni na godišnjem — isti izbornik kao za dežurstva.
+   Prepoznati iz termina se prikazuju, ali se ne mogu maknuti. */
+function crtajGoBlagdane(){
+  const el = $("#gbTablica"); if(!el) return;
+  const g = Number($("#gb-godina").value) || db.godina, lj = aktivni();
+  el.innerHTML =
+    '<thead><tr><th style="width:150px">Blagdan</th><th style="width:110px">Datum</th>'+
+    '<th>Na godišnjem</th><th style="width:190px">Dodaj</th></tr></thead><tbody>'+
+    BLAGDANI_ARHIVA.map(b=>{
+      const dani = b.dani(g);
+      const popis = goRucno(g, b.kljuc);
+      const imena = popis.map(id=>{
+        const l = lijecnik(id); if(!l) return "";
+        return '<span class="pill p-neutral" style="margin:2px 4px 2px 0">'+
+          tockica(id)+esc(l.ime)+
+          ' <a href="#" onclick="skiniGoB(\''+b.kljuc+'\',\''+id+'\');return false" '+
+          'style="text-decoration:none;color:var(--bad);font-weight:700">×</a></span>';
+      }).join("");
+      const slobodni = lj.filter(l=> !popis.includes(l.id));
+      return '<tr><td><b>'+b.naziv+'</b></td><td style="color:var(--muted);font-size:12px">'+
+        dani.map(d=>hr(d)).join('<br>')+'</td>'+
+        '<td>'+(imena || '<span style="color:#aab4bd">nitko</span>')+'</td>'+
+        '<td><select onchange="dodajGoB(\''+b.kljuc+'\',this.value);this.value=\'\'">'+
+        '<option value="">— dodaj —</option>'+
+        slobodni.map(l=>'<option value="'+l.id+'">'+esc(l.ime)+'</option>').join("")+
+        '</select></td></tr>';
+    }).join("")+'</tbody>';
+}
+function dodajGoB(kljuc,lijId){
+  if(!lijId) return;
+  dodajGoBlagdan(Number($("#gb-godina").value)||db.godina, kljuc, lijId);
+  crtajGoBlagdane(); crtajArhivu();
+}
+function skiniGoB(kljuc,lijId){
+  skiniGoBlagdan(Number($("#gb-godina").value)||db.godina, kljuc, lijId);
+  crtajGoBlagdane(); crtajArhivu();
 }
 
 
@@ -3435,7 +3517,7 @@ window.addEventListener("pagehide", ()=>{ odjavaSakriveno = Date.now(); });
 window.addEventListener("pageshow", e=>{ if(e.persisted) odjavaProvjeriPovratak(); });
 
 /* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
-const INACICA = "1.7";
+const INACICA = "2.0";
 function osvjeziNapomenu(){
   $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =
@@ -3834,6 +3916,7 @@ $("#godinaSel").onchange = e=>{ db.godina=Number(e.target.value); prGodina=db.go
   odabir={od:null,do:null}; spremi(); crtajSve(); };
 
 $("#dz-godina").onchange = ()=> crtajDezurstva();
+$("#gb-godina").onchange = ()=> crtajGoBlagdane();
 
 /* ---- obrasci ---- */
 $("#obr-natrag").onclick = zatvoriObrazac;

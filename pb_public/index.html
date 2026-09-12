@@ -1213,14 +1213,14 @@ function prijaveMjeseca(g,m){
    pojedini dan, ne uz skupinu dana. Ključevi „nova", „uskrs", „rad" i
    „bozic" zadržani su iz ranijih upisa, da se ne izgube. */
 const BLAGDANI_ARHIVA = [
+  {kljuc:"docek",   naziv:"Doček Nove godine",  dani:g=>[g+"-12-31"]},
   {kljuc:"nova",    naziv:"Nova godina",        dani:g=>[g+"-01-01"]},
   {kljuc:"uskrs",   naziv:"Uskrs",              dani:g=>[iso(uskrs(g))]},
   {kljuc:"uskrsp",  naziv:"Uskrsni ponedjeljak",dani:g=>[iso(pomak(uskrs(g),1))]},
   {kljuc:"rad",     naziv:"Praznik rada",       dani:g=>[g+"-05-01"]},
   {kljuc:"badnjak", naziv:"Badnjak",            dani:g=>[g+"-12-24"]},
   {kljuc:"bozic",   naziv:"Božić",              dani:g=>[g+"-12-25"]},
-  {kljuc:"stjepan", naziv:"Sveti Stjepan",      dani:g=>[g+"-12-26"]},
-  {kljuc:"docek",   naziv:"Doček Nove godine",  dani:g=>[g+"-12-31"]}
+  {kljuc:"stjepan", naziv:"Sveti Stjepan",      dani:g=>[g+"-12-26"]}
 ];
 const ARHIVA_GODINA = 5;
 /* Prikaz u arhivi: pet godina unatrag, zaključno s tekućom. */

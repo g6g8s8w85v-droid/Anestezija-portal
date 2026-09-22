@@ -765,7 +765,9 @@
   <div class="card">
     <h2>Obrazac zahtjeva za godišnji odmor (O034-02/1)</h2>
     <p class="hint">Zahtjev se izrađuje kao pravi PDF — izvorni obrazac bolnice s upisanim podacima.
-      Učitajte ga jednom; kad bolnica izda novu inačicu, ovdje je zamijenite.</p>
+      Ovdje smije stajati i <b>potpisana</b> inačica, jer se ovaj predložak koristi isključivo za
+      ispunjene zahtjeve. Prazan obrazac u Obrascima ima svoj, nepotpisan PDF, koji se učitava
+      u kartici <b>Izvorni PDF-ovi obrazaca</b> pod šifrom <b>O034-02</b>.</p>
     <div class="row" style="align-items:flex-end;max-width:760px">
       <div style="flex:0 0 auto">
         <button class="btn" id="p-podlogaBtn">Učitaj obrazac (PDF)</button>
@@ -2426,7 +2428,7 @@ function crtajObrasce(){
   const svi = opisiObrazaca().filter(o=> o.tko!=="voditelj" || jeAdmin);
   $("#obrasciKartice").innerHTML = svi.map((o,i)=>{
     const z = zapisObrasca(o.kljuc);
-    const ima = o.izPostavki ? !!obrazacUrl : !!(z && z.pdf);
+    const ima = !!(z && z.pdf);
     const radnja = o.prazan ? 'preuzmiPrazan' : 'otvoriObrazac';
     const boja = ima ? BOJE_OBRAZACA[i % BOJE_OBRAZACA.length]
                      : "linear-gradient(150deg,#c9d2cc,#aab5ae)";
@@ -2449,12 +2451,6 @@ function crtajObrasce(){
 
 /* Prazan obrazac — otvara se izvorni PDF, bez ispunjavanja. */
 function preuzmiPrazan(kljuc){
-  const d = opisObrasca(kljuc);
-  if(d && d.izPostavki){
-    if(!obrazacUrl) return;
-    window.open(obrazacUrl, "_blank");
-    return;
-  }
   const z = zapisObrasca(kljuc); if(!z || !z.pdf) return;
   window.open(PB.osnova+"/api/files/obrasci/"+z.id+"/"+z.pdf, "_blank");
 }
@@ -2488,7 +2484,7 @@ function zatvoriObrazac(){
 let obrazacZaUcitati = null;
 function crtajUpravuObrazaca(){
   const el = $("#obrasciUprava"); if(!el) return;
-  el.innerHTML = '<table><tbody>'+ opisiObrazaca().filter(o=>!o.izPostavki).map(o=>{
+  el.innerHTML = '<table><tbody>'+ opisiObrazaca().map(o=>{
     const z = zapisObrasca(o.kljuc), ima = !!(z && z.pdf);
     return '<tr><td style="width:110px"><b>'+esc(o.kljuc)+'</b></td>'+
       '<td>'+esc(o.naziv)+'</td>'+
@@ -3079,10 +3075,12 @@ function opisiObrazaca(){ return [
   prazan:true, polja:[]
 },
 {
-  /* Isti predložak koji voditelj učita u Postavkama, ali ovdje bez ijednog
-     upisanog podatka — za onoga tko zahtjev radije ispuni rukom. */
+  /* Prazan zahtjev za onoga tko ga radije ispuni rukom.
+     Ima VLASTITI, nepotpisan PDF — namjerno odvojen od predloška u Postavkama.
+     Onaj u Postavkama nosi potpis voditelja i služi samo za ispunjene zahtjeve;
+     da ga dijeli i ova kartica, svatko bi na klik dobio bianco potpisan obrazac. */
   kljuc:"O034-02", naziv:"Zahtjev za godišnji odmor", tko:"lijecnik",
-  prazan:true, izPostavki:true, polja:[]
+  prazan:true, polja:[]
 }
 ]; }
 
@@ -3518,7 +3516,7 @@ window.addEventListener("pagehide", ()=>{ odjavaSakriveno = Date.now(); });
 window.addEventListener("pageshow", e=>{ if(e.persisted) odjavaProvjeriPovratak(); });
 
 /* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
-const INACICA = "2.1";
+const INACICA = "2.2";
 function osvjeziNapomenu(){
   $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =

@@ -3516,7 +3516,7 @@ window.addEventListener("pagehide", ()=>{ odjavaSakriveno = Date.now(); });
 window.addEventListener("pageshow", e=>{ if(e.persisted) odjavaProvjeriPovratak(); });
 
 /* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
-const INACICA = "2.2";
+const INACICA = "2.3";
 function osvjeziNapomenu(){
   $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =
@@ -3672,7 +3672,7 @@ $("#l-ime").onblur = ()=>{
 const DIJELOVI = {
   lijecnici: {n:"Liječnici",          o:"imena, skupine, pravo dana"},
   prijave:   {n:"Termini godišnjih",  o:"svi upisani i predani termini"},
-  izuzeci:   {n:"Izuzeci s rasporeda",o:"svi mjeseci"},
+  izuzeci:   {n:"Izuzeci s rasporeda",o:"jedan mjesec ili svi odjednom"},
   edukacije: {n:"Edukacije",          o:"sve godine"}
 };
 
@@ -3704,14 +3704,19 @@ async function izveziDio(vrsta){
   if(!DIJELOVI[vrsta]) return;
   const d = {verzija:db.verzija, godina:db.godina, vrsta,
              izvezeno:iso(new Date()), veze:popisVeza()};
-  let koliko = 0;
+  let koliko = 0, uIme = "", uPoruku = "";
   try{
     if(vrsta==="lijecnici"){ d.lijecnici = db.lijecnici; koliko = d.lijecnici.length; }
     if(vrsta==="prijave"){   d.prijave   = db.prijave;   koliko = d.prijave.length; }
     if(vrsta==="izuzeci"){
-      d.izuzeci = (await PB.svi("izuzeci")).map(x=>({id:x.id, lijecnikId:x.lijecnik,
+      /* Padajući izbor iznad gumba kaže ide li jedan mjesec ili svi. */
+      const bir = $("#izvozIzMjesec");
+      const mj  = bir ? bir.value : "";
+      const upit = mj ? "filter=" + encodeURIComponent('mjesec="'+mj+'"') : null;
+      d.izuzeci = (await PB.svi("izuzeci", upit)).map(x=>({id:x.id, lijecnikId:x.lijecnik,
                     mjesec:x.mjesec, tekst:x.tekst}));
       koliko = d.izuzeci.length;
+      if(mj){ d.mjesec = mj; uIme = "-"+mj; uPoruku = " za "+nazivMjeseca(mj).replace(/\.$/,""); }
     }
     if(vrsta==="edukacije"){
       d.edukacije = (await PB.svi("edukacije")).map(x=>({id:x.id, lijecnikId:x.lijecnik,
@@ -3719,8 +3724,8 @@ async function izveziDio(vrsta){
       koliko = d.edukacije.length;
     }
   }catch(e){ poruka($("#pod-poruka"),"Izvoz nije uspio: "+e.message,"bad"); return; }
-  spremiDatoteku(d, "portal-"+vrsta+"-"+iso(new Date())+".json");
-  poruka($("#pod-poruka"),"Izvezeno: <b>"+koliko+"</b> — "+DIJELOVI[vrsta].n+".","ok");
+  spremiDatoteku(d, "portal-"+vrsta+uIme+"-"+iso(new Date())+".json");
+  poruka($("#pod-poruka"),"Izvezeno: <b>"+koliko+"</b> — "+DIJELOVI[vrsta].n+uPoruku+".","ok");
 }
 
 /* Vraćanje. `samo` je null (sve što datoteka nosi) ili naziv jednog dijela. */
@@ -3867,12 +3872,33 @@ function crtajDijelove(){
   const el = $("#dijeloviTablica"); if(!el) return;
   el.innerHTML = '<table><tbody>'+ Object.keys(DIJELOVI).map(k=>{
     const d = DIJELOVI[k];
+    const biraj = k==="izuzeci"
+      ? '<select id="izvozIzMjesec" style="width:100%;margin:0 0 6px">'+
+        '<option value="">svi mjeseci</option></select>'
+      : '';
     return '<tr><td><b>'+esc(d.n)+'</b><div class="hint" style="margin:2px 0 0">'+
       esc(d.o)+'</div></td>'+
-      '<td style="width:210px" class="noprint">'+
+      '<td style="width:230px" class="noprint">'+biraj+
       '<button class="btn sm ghost" onclick="izveziDio(\''+k+'\')">Izvezi</button> '+
       '<button class="btn sm ghost" onclick="uveziDio(\''+k+'\')">Uvezi</button></td></tr>';
   }).join("")+'</tbody></table>';
+  napuniMjeseceIzvoza();
+}
+
+/* U izbor ulaze samo mjeseci koji u bazi stvarno imaju izuzetke, najnoviji prvi.
+   Zadano je mjesec koji je otvoren u pregledu izuzetaka, da jedan klik na
+   Izvezi da upravo taj mjesec, a ne cijelu arhivu. */
+async function napuniMjeseceIzvoza(){
+  const bir = $("#izvozIzMjesec"); if(!bir) return;
+  let mjeseci = [];
+  try{
+    mjeseci = Array.from(new Set((await PB.svi("izuzeci","fields=mjesec"))
+                .map(x=>x.mjesec).filter(Boolean))).sort().reverse();
+  }catch(e){ return; }
+  if(!mjeseci.length) return;
+  bir.innerHTML = '<option value="">svi mjeseci ('+mjeseci.length+')</option>'+
+    mjeseci.map(m=>'<option value="'+m+'">'+esc(nazivMjeseca(m))+'</option>').join("");
+  bir.value = (izMjesec && mjeseci.indexOf(izMjesec)>=0) ? izMjesec : mjeseci[0];
 }
 
 

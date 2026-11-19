@@ -1225,11 +1225,27 @@ const BLAGDANI_ARHIVA = [
   {kljuc:"stjepan", naziv:"Sveti Stjepan",      dani:g=>[g+"-12-26"]}
 ];
 const ARHIVA_GODINA = 5;
-/* Prikaz u arhivi: pet godina unatrag, zaključno s tekućom. */
+/* Prikaz u arhivi: pet godina unatrag zaključno s tekućom, PLUS svaka godina
+   unaprijed u kojoj već nešto stoji. Raspored za blagdane i termini se znaju
+   dogovoriti godinu ranije; bez ovoga se upis izvrši, ali ga tablica nema
+   gdje pokazati, pa izgleda kao da nije prošao. */
 function arhivaGodine(){
-  const out=[];
-  for(let g=db.godina-ARHIVA_GODINA+1; g<=db.godina; g++) out.push(g);
-  return out;
+  const naj = db.godina - ARHIVA_GODINA + 1;
+  const skup = new Set();
+  for(let g=naj; g<=db.godina; g++) skup.add(g);
+
+  /* dežurstva na blagdane i blagdani provedeni na godišnjem */
+  Object.keys(db.dezurstva||{}).forEach(k=>{
+    if((db.dezurstva[k]||[]).length) skup.add(Number(k.split("|")[0]));
+  });
+  /* termini godišnjih */
+  (db.prijave||[]).forEach(p=>{
+    if(!zive(p)) return;
+    [p.od, p.do].forEach(d=>{ const g = Number(String(d||"").slice(0,4));
+      if(g) skup.add(g); });
+  });
+
+  return [...skup].filter(g=>g>=naj).sort((a,b)=>a-b);
 }
 /* Upis dežurstava i blagdana: pet unatrag i petnaest unaprijed, jer se
    raspored zna dogovarati i za godine koje tek dolaze. */
@@ -3516,7 +3532,7 @@ window.addEventListener("pagehide", ()=>{ odjavaSakriveno = Date.now(); });
 window.addEventListener("pageshow", e=>{ if(e.persisted) odjavaProvjeriPovratak(); });
 
 /* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
-const INACICA = "2.3";
+const INACICA = "2.4";
 function osvjeziNapomenu(){
   $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =

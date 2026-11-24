@@ -379,6 +379,7 @@
   <button data-tab="stanje" data-pod="godisnji" data-admin="1">Stanje dana</button>
   <button data-tab="arhiva" data-pod="godisnji">Arhiva</button>
   <button data-tab="izuzeci" data-pod="izuzeci">Izuzeci za sljedeći mjesec</button>
+  <button data-tab="raspored" data-pod="raspored">Raspored po salama</button>
   <button data-tab="obrasci" data-pod="obrasci">Obrasci</button>
   <button data-tab="edukacije" data-pod="edukacije">Evidencija edukacija</button>
   <button data-tab="pristup" data-pod="pristup">Moj pristup</button>
@@ -569,6 +570,45 @@
   </div>
 </section>
 
+<!-- ============ RASPORED PO SALAMA ============ -->
+<section class="page" id="tab-raspored">
+  <div class="card">
+    <div class="mnav noprint">
+      <button class="btn ghost sm" id="rs-prev">‹</button>
+      <div class="naslov" id="rs-naslov"></div>
+      <button class="btn ghost sm" id="rs-next">›</button>
+      <button class="btn ghost sm" id="rs-danas" style="margin-left:10px">Danas</button>
+      <input type="date" id="rs-datum" style="width:160px;margin-left:6px">
+      <span id="rs-stanje" class="pill" style="margin-left:10px"></span>
+      <button class="btn sm" id="rs-kljuc" style="margin-left:6px"></button>
+      <div style="flex:1"></div>
+      <button class="btn sm" id="rs-pdf">Raspored u PDF</button>
+    </div>
+
+    <h2 style="text-align:center;text-transform:uppercase;letter-spacing:.03em">
+      Raspored po salama — <span id="rs-datumNaslov"></span></h2>
+
+    <table style="margin-top:14px">
+      <thead><tr><th style="width:190px">Sala</th><th>Raspoređeni</th>
+        <th style="width:200px" class="noprint">Dodaj</th></tr></thead>
+      <tbody id="rs-tablica"></tbody>
+    </table>
+
+    <div style="margin-top:16px">
+      <label for="rs-napomena" style="font-weight:700;font-size:14px">Napomena</label>
+      <textarea id="rs-napomena" rows="3" maxlength="1000"
+        style="font-size:16px;line-height:1.45"
+        placeholder="ostale operativne obavijesti"></textarea>
+      <div id="rs-napomenaTekst" class="msg m-info"
+        style="display:none;font-size:16px;line-height:1.45"></div>
+    </div>
+
+    <div class="noprint" id="rs-posta" style="margin-top:18px"></div>
+    <div class="hint" id="rs-trag" style="margin-top:10px"></div>
+    <div id="rs-poruka"></div>
+  </div>
+</section>
+
 <!-- ============ MOJ PRISTUP ============ -->
 <section class="page" id="tab-pristup">
   <div class="card noprint" id="mojPristup">
@@ -691,8 +731,10 @@
     <p class="hint">Boja uz ime je boja kojom se liječnik prikazuje u pregledu po mjesecima.</p>
     <div style="overflow-x:auto"><table>
       <thead><tr><th>Ime i prezime</th><th style="width:130px">Korisničko ime</th><th style="width:100px">Šifra</th>
+        <th style="width:190px">E-adresa</th>
         <th style="width:70px">Skupina</th><th style="width:75px">Pravo</th>
         <th style="width:90px">Preneseno</th><th style="width:105px">Prijave</th>
+        <th style="width:95px" class="noprint">Slaže raspored</th>
         <th style="width:110px">Predano</th>
         <th style="width:95px">Status</th><th style="width:200px" class="noprint"></th></tr></thead>
       <tbody id="lijecniciTbody"></tbody>
@@ -760,6 +802,63 @@
       <div style="flex:1"><label>Služba</label><input type="text" id="p-sluzba" placeholder="naziv službe"></div>
       <div style="flex:1"><label>Odjel</label><input type="text" id="p-odjel"></div>
     </div>
+  </div>
+
+  <div class="card">
+    <h2>Sale u dnevnom rasporedu</h2>
+    <p class="hint">Jedno radilište po retku, redom kojim želite da stoje u rasporedu i na
+      ispisu. Preimenovanje ne briše ranije upise — sala koja ima upisane liječnike
+      prikazat će se i ako je skinete s popisa.</p>
+    <textarea id="p-sale" rows="9" style="max-width:420px;font-size:15px"></textarea>
+    <div id="p-salePoruka"></div>
+
+    <h2 style="margin-top:26px">Stalni primatelji rasporeda</h2>
+    <p class="hint">Adrese koje raspored primaju <b>svaki dan</b>, bez obzira na to tko je
+      raspoređen — glavna sestra, anestetičar i slično. Jedna po retku. Ostavite prazno
+      ako ih nema.</p>
+    <textarea id="p-dodatnePoste" rows="3" style="max-width:420px;font-size:15px"
+      placeholder="ime.prezime@obpula.hr"></textarea>
+    <div id="p-dodatnePosteOkvir"></div>
+
+    <h2 style="margin-top:26px">Preslika poruke</h2>
+    <p class="hint">Upišete li ovdje adresu, poruka se <b>naslovljava na nju</b>, a svi
+      raspoređeni idu u <b>skrivenu kopiju</b>. Tako u svom sandučiću imate trag da je
+      raspored otišao, kolege ne vide tuđe adrese i nitko ne može odgovoriti svima.
+      Ostavite li prazno, poruka ide izravno raspoređenima.</p>
+    <input type="email" id="p-preslikaPosta" style="max-width:380px" placeholder="bez preslike">
+    <div id="p-preslikaPorukaOkvir"></div>
+
+    <h2 style="margin-top:26px">Probna adresa za slanje</h2>
+    <p class="hint">Dok je ovdje upisana adresa, <b>sve</b> poruke o rasporedu idu samo na nju,
+      bez obzira tko je raspoređen. Služi za isprobavanje. Kad je izbrišete, poruke počinju
+      ići stvarnim primateljima.</p>
+    <input type="email" id="p-probnaPosta" style="max-width:380px" placeholder="nitko — poruke idu primateljima">
+    <div id="p-probnaPorukaOkvir"></div>
+
+    <h2 style="margin-top:26px">Automatsko jutarnje slanje</h2>
+    <p class="hint">Poslužitelj svako jutro u zadani sat pošalje raspored za taj dan —
+      ali <b>samo ako je potvrđen</b> i ako već nije poslan. Nepotvrđen dan se preskače.
+      Radi i kad nitko nije prijavljen.</p>
+    <div class="row" style="max-width:520px;align-items:flex-end">
+      <div><label>Slanje</label>
+        <select id="p-slanjeUkljuceno">
+          <option value="0">isključeno</option>
+          <option value="1">uključeno</option>
+        </select></div>
+      <div><label>Sat</label><input type="number" id="p-satSlanja" min="0" max="23" style="width:90px"></div>
+      <div><label>Minuta</label><input type="number" id="p-minutaSlanja" min="0" max="59" style="width:90px"></div>
+    </div>
+    <div id="p-slanjePoruka"></div>
+
+    <h2 style="margin-top:26px">Čuvanje poslanih rasporeda</h2>
+    <p class="hint">Poslani PDF se čuva uz taj dan, da se uvijek može dohvatiti baš ona poruka
+      koja je otišla. Nakon ovoliko dana poslužitelj ga briše — sam zapis o danu, imena i
+      napomena ostaju zauvijek, pa se raspored uvijek može izraditi nanovo.
+      Upišite <b>0</b> ako želite da se PDF-ovi nikad ne brišu.</p>
+    <div class="row" style="max-width:320px;align-items:flex-end">
+      <div><label>Dana</label><input type="number" id="p-cuvajPdf" min="0" max="3650" style="width:120px"></div>
+    </div>
+    <div id="p-cuvajPdfPoruka"></div>
   </div>
 
   <div class="card">
@@ -892,6 +991,11 @@
 /* ==========================================================
    POHRANA
    ========================================================== */
+/* Zadani popis. Voditelj ga mijenja u Postavkama, jer se radilišta s
+   vremenom mijenjaju, a za svaku promjenu ne treba nova verzija portala. */
+const SALE_ZADANE = ["Abdominalna","Laparoskopska","NK/ORT","Traumatološka",
+                     "Urološka","Vaskularna","Ginekološka","Vanjski 2"];
+
 const zadanePostavke = () => ({
   limitiMjeseci:[4,4,4,4,4,3,3,3,4,4,4,4],
   razdoblja:[],
@@ -907,11 +1011,20 @@ const zadanePostavke = () => ({
   polja:zadanaPolja(),        /* položaji upisa na obrascu */
   pomakX:0,                   /* fino namještanje, u milimetrima */
   pomakY:0,
-  skupine:["Skupina 1","Skupina 2","Skupina 3"]
+  skupine:["Skupina 1","Skupina 2","Skupina 3"],
+  probnaPosta:"",             /* dok je upisana, sve poruke idu samo na nju */
+  preslikaPosta:"",           /* poruka se šalje na nju, raspoređeni idu u skrivenu kopiju */
+  nePrimaju:[],               /* oznake liječnika koji su rekli da ne žele raspored */
+  dodatnePoste:[],            /* stalni primatelji izvan popisa liječnika (glavna sestra…) */
+  cuvajPdfDana:30,            /* koliko dana poslužitelj čuva poslane PDF-ove; 0 = zauvijek */
+  satSlanja:7,                /* u koliko sati poslužitelj sam šalje potvrđeni raspored */
+  minutaSlanja:0,
+  slanjeUkljuceno:false,      /* dok je isključeno, poslužitelj ne šalje ništa sam */
+  sale:SALE_ZADANE.slice()    /* radilišta u Rasporedu po salama */
 });
 let db = { verzija:5, godina:new Date().getFullYear(),
   postavke: zadanePostavke(), lijecnici:[], prijave:[], dezurstva:{},
-  izuzeci:[], edukacije:[] };
+  izuzeci:[], edukacije:[], raspored:[] };
 let jeAdmin = false;                // proizlazi iz prijave, ne sprema se
 let sesija = null;                  // null | {tip:"admin"} | {tip:"lijecnik", id}
 let gledamKao = null;               // administratorsko testiranje: id liječnika
@@ -923,6 +1036,19 @@ function ispraviPostavke(){
     db.postavke.limitiMjeseci = zadanePostavke().limitiMjeseci;
   if(!Array.isArray(db.postavke.razdoblja)) db.postavke.razdoblja = [];
   if(!Array.isArray(db.postavke.izuzeciOtvoreni)) db.postavke.izuzeciOtvoreni = [];
+  if(!Array.isArray(db.postavke.sale) || !db.postavke.sale.length)
+    db.postavke.sale = SALE_ZADANE.slice();
+  if(!Array.isArray(db.postavke.nePrimaju)) db.postavke.nePrimaju = [];
+  if(!Array.isArray(db.postavke.dodatnePoste)) db.postavke.dodatnePoste = [];
+  {
+    const d = Number(db.postavke.cuvajPdfDana);
+    db.postavke.cuvajPdfDana = isFinite(d) ? Math.max(0, Math.min(3650, Math.round(d))) : 30;
+    const h = Number(db.postavke.satSlanja);
+    db.postavke.satSlanja = isFinite(h) ? Math.max(0, Math.min(23, Math.round(h))) : 7;
+    const m = Number(db.postavke.minutaSlanja);
+    db.postavke.minutaSlanja = isFinite(m) ? Math.max(0, Math.min(59, Math.round(m))) : 0;
+    db.postavke.slanjeUkljuceno = !!db.postavke.slanjeUkljuceno;
+  }
   {
     const m = Number(db.postavke.odjavaMinuta);
     db.postavke.odjavaMinuta = isFinite(m) ? Math.max(0, Math.min(180, m)) : 10;
@@ -1038,6 +1164,19 @@ const PB = {
     }
     return out;
   },
+  /* Datoteka ide zasebno, jer se šalje kao multipart, ne kao JSON. */
+  async posaljiDatoteku(zbirka, id, polje, ime, bajti){
+    const fd = new FormData();
+    fd.append(polje, new Blob([bajti], {type:"application/pdf"}), ime);
+    const o = {method:"PATCH", body:fd, headers:{}};
+    if(PB.token) o.headers["Authorization"] = PB.token;
+    const odg = await fetch(PB.osnova+"/api/collections/"+zbirka+"/records/"+id, o);
+    if(!odg.ok){
+      let p = null; try{ p = JSON.parse(await odg.text()); }catch(e){}
+      throw new Error((p && p.message) || ("Greška "+odg.status));
+    }
+    return odg.json();
+  },
   stvori: (z,p)   => PB.zovi("/api/collections/"+z+"/records", {method:"POST", tijelo:p}),
   azuriraj: (z,id,p)=> PB.zovi("/api/collections/"+z+"/records/"+id, {method:"PATCH", tijelo:p}),
   obrisi: (z,id)  => PB.zovi("/api/collections/"+z+"/records/"+id, {method:"DELETE"})
@@ -1058,7 +1197,8 @@ function posalji(fn, opis){
 const izBazeLijecnik = r => ({id:r.id, ime:r.name||"", korisnik:r.username||"", zvanje:r.zvanje||"",
   skupina:Number(r.skupina)||1, pravoDana:Number(r.pravoDana)||0,
   preneseniDani:Number(r.preneseniDani)||0, otvoreno:!!r.otvoreno,
-  aktivan:r.aktivan!==false, voditelj:!!r.voditelj});
+  aktivan:r.aktivan!==false, voditelj:!!r.voditelj, raspored:!!r.raspored,
+  posta:r.posta||""});
 const izBazePrijava = r => ({id:r.id, lijecnikId:r.lijecnik, od:r.odDatum, do:r.doDatum,
   status:r.status||"potvrden", zakljucana:!!r.zakljucana, automatski:!!r.automatski,
   raniji:!!r.raniji, kreiran:(r.created||"").slice(0,10)});
@@ -1088,6 +1228,8 @@ async function ucitajIzBaze(){
   catch(e){ db.izuzeci = []; izGreska = e.message||"greška"; }
   try{ await ucitajEdukacije(); edGreska=""; }
   catch(e){ db.edukacije = []; edGreska = e.message||"greška"; }
+  try{ await ucitajRaspored(); rsGreska=""; }
+  catch(e){ db.raspored = []; rsGreska = e.message||"greška"; }
   await ucitajObrasce();
   const zapis = po.find(x=>x.kljuc==="glavne");
   postavkeId = zapis ? zapis.id : null;
@@ -1489,6 +1631,9 @@ const PODRUCJA = [
   {k:"izuzeci", b:"linear-gradient(150deg,#7cb994,#4a8f66)", n:"Izuzeci za sljedeći mjesec",
    o:"Pošteda s rasporeda",
    ik:'<path d="M12 8v5M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>'},
+  {k:"raspored", b:"linear-gradient(150deg,#8fc1a6,#3f8a63)", n:"Raspored po salama",
+   o:"Dnevni raspored po radilištima",
+   ik:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 9v12"/>'},
   {k:"obrasci", b:"linear-gradient(150deg,#9587c9,#6b5b9e)", n:"Obrasci",
    o:"Obrasci bolnice, spremni za ispis",
    ik:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>'},
@@ -1578,6 +1723,10 @@ function otvoriTab(ime){
   $("#tab-"+ime).classList.add("active");
   $("nav.tabs").style.display = "";     /* traka mora ostati vidljiva */
   primijeniNacin();
+  /* Raspored se pri svakom otvaranju dohvaća iz baze. Istina o tome je li dan
+     potvrđen i je li već poslan živi u PocketBaseu, ne u ovom pregledniku —
+     kartica može stajati otvorena od sinoć, a u međuvremenu se sve promijenilo. */
+  if(ime === "raspored") osvjeziRaspored();
 }
 
 /* izbornik godine uvijek mora pokazivati onu godinu koja je stvarno odabrana */
@@ -1591,6 +1740,7 @@ function crtajSve(){
   uskladiGodinu();
   osvjeziPraznike();
   puniLijecnikeSelect();
+  crtajRaspored();
   crtajPrijavaTab(); crtajMjesec(); crtajMjPrijave();
   crtajStanje(); crtajIzuzetke(); crtajEdukacije(); crtajObrasce();
   crtajArhivu(); crtajLijecnike(); crtajPostavke();
@@ -2184,6 +2334,563 @@ async function obrisiIzuzetak(id){
 }
 
 /* ==========================================================
+   TAB: RASPORED PO SALAMA
+   Dnevna ploča umjesto pisanja po papiru operativnog programa. U svakoj sali
+   može biti više liječnika. Jedna napomena za cijeli dan pokriva sve ostalo
+   (izmjene na drugim radilištima, obavijesti). Uređuju voditelj i oni kojima
+   voditelj da kvačicu "raspored" — i ništa drugo im ta kvačica ne otvara.
+   ========================================================== */
+/* Sale koje se prikazuju: podešeni popis, a na kraj se dodaje svaka sala
+   koja na taj dan ima upis a nije više na popisu — da nitko tiho ne nestane
+   ako se sala preimenuje ili makne. */
+function sale(){
+  const p = Array.isArray(db.postavke.sale) && db.postavke.sale.length
+    ? db.postavke.sale.slice() : SALE_ZADANE.slice();
+  (db.raspored||[]).forEach(x=>{ if(p.indexOf(x.sala) < 0) p.push(x.sala); });
+  return p;
+}
+
+let rsDatum = iso(new Date());
+let rsGreska = "";
+let rsDan = {napomena:"", izmijenio:"", kada:"", potvrdjen:false, poslano:""};
+let rsDanId = null;
+
+/* Tko smije uređivati: voditelj uvijek, ostali samo s kvačicom. */
+function smijeRaspored(){
+  if(jeAdmin) return true;
+  const l = jaOsobno();
+  return !!(l && l.raspored);
+}
+/* Potvrđen dan se ne mijenja dok ga se ne otključa — isto načelo kao kod
+   predanih termina godišnjeg: potvrda je trenutak u kojem raspored prestaje
+   biti nečiji nacrt i postaje ono što kolege dobivaju. */
+const smijeMijenjati = () => smijeRaspored() && !rsDan.potvrdjen;
+
+/* Dan je bio poslan pa se u međuvremenu mijenjao — sljedeća poruka je ispravak. */
+const jeIspravak = () => !!rsDan.poslano;
+
+async function potvrdiRaspored(){
+  if(!smijeRaspored() || rsDan.potvrdjen) return;
+  if(!(db.raspored||[]).length){
+    poruka($("#rs-poruka"), "Nema koga potvrditi — nitko nije raspoređen.", "warn"); return;
+  }
+  rsDan.potvrdjen = true;
+  poruka($("#rs-poruka"), "Potvrđujem i spremam PDF…", "info");
+  await zabiljeziIzmjenu();
+  /* PDF se sprema uz dan jer ga poslužitelj ujutro treba poslati, a tada
+     nitko nije prijavljen i nema tko ga izraditi. */
+  let spremljen = false;
+  try{
+    if(rsDanId){
+      const bajti = await sNajvise(rasporedPdfBajti(), 20000);
+      await sNajvise(PB.posaljiDatoteku("rasporedDani", rsDanId, "pdf",
+        imeRasporeda(), bajti), 20000);
+      spremljen = true;
+    }
+  }catch(e){ if(window.__pdfDebug) console.log("PDF u bazu nije spremljen:", e.message); }
+  crtajRaspored();
+  poruka($("#rs-poruka"), spremljen
+    ? "Raspored je potvrđen i zaključan, PDF je spremljen uz taj dan."
+    : "Raspored je potvrđen i zaključan. <b>PDF nije spremljen</b> — "+
+      "jutarnje slanje neće imati prilog. Provjerite vezu pa otključajte i potvrdite ponovno.",
+    spremljen ? "ok" : "warn");
+}
+async function otkljucajRaspored(){
+  if(!smijeRaspored() || !rsDan.potvrdjen) return;
+  if(!confirm(jeIspravak()
+      ? "Raspored je već poslan kolegama.\nOtključati ga za izmjene?\n\n"+
+        "Nakon izmjene morate ga ponovno potvrditi i poslati — poruka će biti označena kao ispravak."
+      : "Otključati raspored za izmjene?")) return;
+  rsDan.potvrdjen = false;
+  await zabiljeziIzmjenu();
+  crtajRaspored();
+}
+
+const DANI_PUNI = ["Ponedjeljak","Utorak","Srijeda","Četvrtak","Petak","Subota","Nedjelja"];
+const rsNaziv = d => { const x = izIso(d);
+  return DANI_PUNI[(x.getDay()+6)%7] + ", " + hr(d); };
+
+async function ucitajRaspored(){
+  const [r, dn] = await Promise.all([
+    PB.svi("raspored", "filter=" + encodeURIComponent('datum="'+rsDatum+'"') + "&sort=created"),
+    PB.svi("rasporedDani", "filter=" + encodeURIComponent('datum="'+rsDatum+'"'))
+  ]);
+  db.raspored = r.map(x=>({id:x.id, datum:x.datum, sala:x.sala, lijecnikId:x.lijecnik}));
+  const z = dn[0];
+  rsDanId = z ? z.id : null;
+  rsDan = {napomena: z ? (z.napomena||"") : "",
+           izmijenio: z ? (z.izmijenio||"") : "",
+           kada: z ? (z.updated||"") : "",
+           potvrdjen: z ? !!z.potvrdjen : false,
+           poslano: z ? (z.poslano||"") : ""};
+}
+async function osvjeziRaspored(){
+  try{ await ucitajRaspored(); rsGreska = ""; }
+  catch(e){ db.raspored = []; rsGreska = e.message||"greška"; }
+  crtajRaspored();
+}
+async function pomakniRasporedDan(n){
+  rsDatum = iso(pomak(izIso(rsDatum), n));
+  await osvjeziRaspored();
+}
+async function naDanRasporeda(d){
+  if(!d) return;
+  rsDatum = d;
+  await osvjeziRaspored();
+}
+
+const uSali = sala => (db.raspored||[]).filter(x=>x.sala===sala);
+
+/* Svaka izmjena ostavlja trag: tko i kada. Jedan zapis po danu. */
+async function zabiljeziIzmjenu(){
+  const l = jaOsobno();
+  const tijelo = {datum:rsDatum, napomena:rsDan.napomena||"",
+                  potvrdjen: !!rsDan.potvrdjen, poslano: rsDan.poslano||"",
+                  izmijenio: l ? l.ime : (jeAdmin ? "Administrator" : "")};
+  try{
+    if(rsDanId) await PB.azuriraj("rasporedDani", rsDanId, tijelo);
+    else { const r = await PB.stvori("rasporedDani", tijelo); rsDanId = r.id; }
+    rsDan.izmijenio = tijelo.izmijenio;
+    rsDan.kada = new Date().toISOString();
+  }catch(e){ /* trag nije razlog da raspored padne */ }
+}
+
+async function dodajUSalu(sala, lijecnikId){
+  if(!smijeMijenjati() || !lijecnikId) return;
+  if(uSali(sala).some(x=>x.lijecnikId===lijecnikId)) return;
+  try{
+    const r = await PB.stvori("raspored", {datum:rsDatum, sala, lijecnik:lijecnikId});
+    (db.raspored = db.raspored||[]).push({id:r.id, datum:rsDatum, sala, lijecnikId});
+    await zabiljeziIzmjenu();
+    crtajRaspored();
+  }catch(e){ poruka($("#rs-poruka"), "Nije upisano: "+e.message, "bad"); }
+}
+async function skiniIzSale(id){
+  if(!smijeMijenjati()) return;
+  try{
+    await PB.obrisi("raspored", id);
+    db.raspored = (db.raspored||[]).filter(x=>x.id!==id);
+    await zabiljeziIzmjenu();
+    crtajRaspored();
+  }catch(e){ poruka($("#rs-poruka"), "Nije maknuto: "+e.message, "bad"); }
+}
+async function spremiNapomenuDana(){
+  if(!smijeMijenjati()) return;
+  const t = ($("#rs-napomena").value||"").trim();
+  if(t === rsDan.napomena) return;
+  rsDan.napomena = t;
+  await zabiljeziIzmjenu();
+  crtajRaspored();
+}
+
+function crtajRaspored(){
+  if(!$("#rs-tablica")) return;
+  const smije = smijeMijenjati();
+  $("#rs-naslov").textContent = rsNaziv(rsDatum);
+  $("#rs-datumNaslov").textContent = rsNaziv(rsDatum).toLowerCase();
+  if($("#rs-datum").value !== rsDatum) $("#rs-datum").value = rsDatum;
+
+  const tb = $("#rs-tablica");
+  if(rsGreska){
+    tb.innerHTML = '<tr><td colspan="3"><div class="empty">Raspored se ne može učitati — '+
+      'zbirke <b>raspored</b> i <b>rasporedDani</b> vjerojatno još nisu uvezene u bazu.<br>'+
+      '<span style="font-size:12px">('+esc(rsGreska)+')</span></div></td></tr>';
+  } else {
+    const lj = aktivni();
+    tb.innerHTML = sale().map(sala=>{
+      const u = uSali(sala);
+      const imena = u.length ? u.map(x=>{
+        const l = lijecnik(x.lijecnikId);
+        return '<span class="pill p-neutral" style="margin:2px 4px 2px 0">'+
+          tockica(x.lijecnikId)+esc(l?l.ime:"(obrisan)")+
+          (smije ? ' <a href="#" onclick="skiniIzSale(\''+x.id+'\');return false" '+
+                   'style="text-decoration:none">×</a>' : '')+'</span>';
+      }).join("") : '<span class="hint">nitko</span>';
+      const slobodni = lj.filter(l=> !u.some(x=>x.lijecnikId===l.id));
+      const biraj = smije
+        ? '<select onchange="dodajUSalu(\''+sala.replace(/'/g,"\\'")+'\',this.value);this.value=\'\'">'+
+          '<option value="">— dodaj —</option>'+
+          slobodni.map(l=>'<option value="'+l.id+'">'+esc(l.ime)+'</option>').join("")+
+          '</select>'
+        : '';
+      return '<tr><td><b>'+esc(sala)+'</b></td><td>'+imena+'</td>'+
+             '<td class="noprint">'+biraj+'</td></tr>';
+    }).join("");
+  }
+
+  /* stanje dana i gumb za zaključavanje */
+  {
+    const st = $("#rs-stanje"), gb = $("#rs-kljuc");
+    const potv = !!rsDan.potvrdjen;
+    st.className = "pill " + (potv ? "p-ok" : "p-warn");
+    st.textContent = potv ? "potvrđen" : "u izradi";
+    st.style.display = (db.raspored||[]).length || potv ? "" : "none";
+    gb.style.display = smijeRaspored() ? "" : "none";
+    gb.textContent = potv ? "Otključaj" : "Potvrdi raspored";
+    gb.className = "btn sm" + (potv ? " ghost" : "");
+    gb.onclick = potv ? otkljucajRaspored : potvrdiRaspored;
+  }
+
+  /* napomena: uređivači je tipkaju, ostali je samo čitaju */
+  const ta = $("#rs-napomena"), tx = $("#rs-napomenaTekst");
+  ta.style.display = smije ? "" : "none";
+  if(smije){ if(document.activeElement !== ta) ta.value = rsDan.napomena||""; }
+  tx.style.display = (!smije && rsDan.napomena) ? "" : "none";
+  tx.textContent = rsDan.napomena||"";
+  const oz = document.querySelector('label[for="rs-napomena"]');
+  if(oz) oz.style.display = (smije || rsDan.napomena) ? "" : "none";
+
+  crtajPrimatelje();
+
+  const tr = $("#rs-trag");
+  tr.textContent = rsDan.izmijenio
+    ? "Zadnja izmjena: "+rsDan.izmijenio+(rsDan.kada ? ", "+vrijemeHr(rsDan.kada) : "")
+    : "";
+}
+
+/* ----------------------------------------------------------
+   DNEVNI POPIS PRIMATELJA
+   Nema zasebne liste koju bi trebalo održavati: tko je raspoređen, taj je
+   i primatelj. Dok traje proba, sve ide na jednu adresu iz Postavki, da se
+   ne može dogoditi da pokusna poruka ode cijelom odjelu.
+   ---------------------------------------------------------- */
+/* Tko ne želi primati raspored. Odluka je trajna, ne vrijedi samo za danas —
+   netko je rekao "mene nemoj" i to ostaje dok sam ne kaže drukčije. */
+const nePrima = id => (db.postavke.nePrimaju||[]).includes(id);
+
+function prebaciPrimanje(id){
+  if(!smijeRaspored()) return;
+  const p = db.postavke;
+  if(!Array.isArray(p.nePrimaju)) p.nePrimaju = [];
+  p.nePrimaju = nePrima(id) ? p.nePrimaju.filter(x=>x!==id) : p.nePrimaju.concat([id]);
+  spremi();
+  crtajRaspored();
+}
+
+/* sa    — raspoređeni s adresom, primaju
+   bez   — raspoređeni bez adrese
+   nece  — raspoređeni koji su se odjavili
+   stalni— adrese iz Postavki koje primaju uvijek (glavna sestra, anestetičar…) */
+function primateljiDana(){
+  const vidjeni = {};
+  const out = {sa:[], bez:[], nece:[], stalni:(db.postavke.dodatnePoste||[]).slice()};
+  (db.raspored||[]).forEach(x=>{
+    if(vidjeni[x.lijecnikId]) return;
+    vidjeni[x.lijecnikId] = true;
+    const l = lijecnik(x.lijecnikId); if(!l) return;
+    (nePrima(l.id) ? out.nece : (l.posta ? out.sa : out.bez)).push(l);
+  });
+  const red = (a,b)=> String(a.ime).localeCompare(String(b.ime), "hr");
+  out.sa.sort(red); out.bez.sort(red); out.nece.sort(red);
+  return out;
+}
+
+/* Raspored kao običan tekst — ide u tijelo poruke. */
+function rasporedTekst(){
+  const r = [rsNaziv(rsDatum), ""];
+  sale().forEach(sala=>{
+    const u = uSali(sala);
+    r.push(sala + ": " + (u.length
+      ? u.map(x=>{ const l=lijecnik(x.lijecnikId); return l?l.ime:"(obrisan)"; }).join(", ")
+      : "-"));
+  });
+  if((rsDan.napomena||"").trim()) r.push("", "Napomena: "+rsDan.napomena.trim());
+  r.push("", "Poslano iz portala Odjela.");
+  return r.join("\n");
+}
+
+/* Priprema poruke, odvojeno od samog otvaranja — tako se može provjeriti
+   komu bi otišla, a da se ništa ne pošalje. */
+function pripremiPoruku(){
+  const p = primateljiDana();
+  if(!p.sa.length && !p.bez.length && !p.nece.length)
+    return {ok:false, vrsta:"warn", poruka:"Za taj dan nitko nije raspoređen."};
+  if(!rsDan.potvrdjen)
+    return {ok:false, vrsta:"warn", poruka:"Raspored još nije potvrđen. "+
+      "Potvrdite ga gumbom <b>Potvrdi raspored</b> gore — tek tada se šalje."};
+  const proba = (db.postavke.probnaPosta||"").trim();
+  const prima = proba ? [proba] : p.sa.map(l=>l.posta).concat(p.stalni);
+  if(!prima.length)
+    return {ok:false, vrsta:"bad", poruka:"Nitko od raspoređenih nema upisanu e-adresu. "+
+      "Adrese se upisuju u <b>Liječnici</b>."};
+  /* Ako je upisana adresa za presliku, poruka se naslovljava na nju, a
+     raspoređeni idu u skrivenu kopiju: u sanduku ostaje trag da je otišlo,
+     kolege ne vide tuđe adrese i nitko ne odgovara svima.
+     Tijekom probe nema skrivene kopije — sve ide na jednu adresu. */
+  const preslika = proba ? "" : (db.postavke.preslikaPosta||"").trim();
+  const naslovljeno = preslika ? [preslika] : prima;
+  const skriveno = preslika ? prima : [];
+  const veza = "mailto:" + encodeURIComponent(naslovljeno.join(","))
+    + "?subject=" + encodeURIComponent((jeIspravak() ? "ISPRAVAK — " : "") +
+        "Raspored po salama — " + hr(rsDatum))
+    + (skriveno.length ? "&bcc=" + encodeURIComponent(skriveno.join(",")) : "")
+    + "&body=" + encodeURIComponent(rasporedTekst());
+  if(veza.length > 1900)
+    return {ok:false, vrsta:"bad", poruka:"Poruka je preduga za ovaj način slanja. "+
+      "Pošaljite raspored kao PDF."};
+  return {ok:true, veza, prima, proba, preslika, skriveno};
+}
+
+/* Prilog se iz preglednika ne može sam zakvačiti na poruku — to zna samo
+   poslužitelj koji šalje. Zato ovdje radimo sljedeće najbolje: PDF se izradi
+   i spremi u Preuzimanja, poruka se otvori s upisanim primateljima, a ostaje
+   ga samo povući u nju. */
+async function posaljiRaspored(){
+  if(!smijeRaspored()) return;
+  const r = pripremiPoruku();
+  if(!r.ok){ poruka($("#rs-poruka"), r.poruka, r.vrsta); return; }
+  let ime = null;
+  poruka($("#rs-poruka"), "Izrađujem PDF…", "info");
+  rsDan.poslano = new Date().toISOString();
+  zabiljeziIzmjenu();
+  try{ ime = await spremiRasporedPdf(); }
+  catch(e){ if(window.__pdfDebug) console.log("PDF PAD:", e && e.stack || e); }
+  /* poruka se otvara tek kad je datoteka spremljena, da je preuzimanje ne prekine */
+  setTimeout(()=>{ window.location.href = r.veza; }, 600);
+  poruka($("#rs-poruka"),
+    (r.proba ? "Poruka ide samo na probnu adresu <b>"+esc(r.proba)+"</b>."
+     : r.preslika ? "Poruka je naslovljena na <b>"+esc(r.preslika)+"</b>, a <b>"+
+         r.skriveno.length+"</b> raspoređenih je u skrivenoj kopiji."
+     : "Poruka za <b>"+r.prima.length+"</b> primatelja.")+
+    (ime ? " PDF <b>"+esc(ime)+"</b> je u Preuzimanjima — povucite ga u poruku kao prilog."
+         : " <b>PDF nije izrađen</b> (za to treba internetska veza), poruka nosi raspored u tekstu."),
+    ime ? "ok" : "warn");
+}
+
+function crtajPrimatelje(){
+  const el = $("#rs-posta"); if(!el) return;
+  /* slanje pripada onome tko raspored slaže — tko ga samo gleda, ne šalje */
+  if(!smijeRaspored()){ el.innerHTML = ""; return; }
+  const p = primateljiDana();
+  const proba = (db.postavke.probnaPosta||"").trim();
+  const ukupno = p.sa.length + p.bez.length + p.nece.length;
+  if(!ukupno){ el.innerHTML = ""; return; }
+
+  /* klik na ime ga skida s popisa primatelja ili ga vraća */
+  const znak = (l, vrsta, naslov) =>
+    '<span class="pill '+vrsta+'" style="margin:2px 4px 2px 0" title="'+naslov+'">'+
+    esc(l.ime)+' <a href="#" onclick="prebaciPrimanje(\''+l.id+'\');return false" '+
+    'style="text-decoration:none;opacity:.75">'+(nePrima(l.id) ? "+" : "×")+'</a></span>';
+
+  const popis =
+    p.sa.map(l=>znak(l, "p-ok", "prima raspored — klik na × da ga skinete")).join("") +
+    p.bez.map(l=>znak(l, "p-warn", "nema upisanu e-adresu")).join("") +
+    p.stalni.map(a=>'<span class="pill p-neutral" style="margin:2px 4px 2px 0" '+
+      'title="stalni primatelj iz Postavki">'+esc(a)+'</span>').join("");
+
+  el.innerHTML =
+    '<div style="font-weight:700;font-size:14px;margin-bottom:6px">Primatelji ('+
+      (p.sa.length + p.stalni.length)+')</div>'+
+    '<div>'+popis+'</div>'+
+    (p.nece.length
+      ? '<div style="margin-top:8px"><span class="hint">Ne primaju:</span> '+
+        p.nece.map(l=>znak(l, "p-neutral", "odjavljen — klik na + da ga vratite")).join("")+
+        '</div>' : '')+
+    (p.bez.length
+      ? '<div class="hint" style="margin-top:6px">Bez e-adrese: <b>'+p.bez.length+'</b>. '+
+        'Adrese se upisuju u <b>Liječnici i postavke → Liječnici</b>.</div>' : '')+
+    (proba
+      ? '<div class="msg m-warn" style="margin-top:10px"><b>Proba.</b> Sve poruke idu '+
+        'isključivo na <b>'+esc(proba)+'</b>, nitko drugi ih ne prima. '+
+        'Prekida se brisanjem probne adrese u Postavkama.</div>' : "")+
+    ((db.postavke.preslikaPosta||"").trim() && !proba
+      ? '<div class="hint" style="margin-top:6px">Poruka se naslovljava na <b>'+
+        esc(db.postavke.preslikaPosta.trim())+'</b>, raspoređeni idu u skrivenu kopiju.</div>'
+      : "")+
+    (rsDan.potvrdjen && db.postavke.slanjeUkljuceno && !rsDan.poslano
+      ? '<div class="hint" style="margin-top:6px">Poslužitelj će ga poslati sam u <b>'+
+        db.postavke.satSlanja+":"+dvo(db.postavke.minutaSlanja)+
+        '</b>. Gumbom ispod možete poslati i odmah.</div>' : "")+
+    (rsDan.potvrdjen ? "" :
+      '<div class="msg m-warn" style="margin-top:10px">Raspored nije potvrđen, pa se ne može '+
+      'poslati. Potvrdite ga gumbom <b>Potvrdi raspored</b> gore.</div>')+
+    '<div style="margin-top:10px"><button class="btn" onclick="posaljiRaspored()"'+
+      (rsDan.potvrdjen ? "" : " disabled")+'>'+
+      (jeIspravak() ? "Pošalji ispravak" : "Pošalji kolegama")+'</button>'+
+      (rsDan.poslano ? '<span class="hint" style="margin-left:10px">Zadnje slanje: '+
+        esc(vrijemeHr(rsDan.poslano))+'</span>' : "")+'</div>';
+}
+
+/* ----------------------------------------------------------
+   PDF rasporeda — A4 ležeće, jedna stranica, za slanje kolegama.
+   Crta se od nule (nema izvornog obrasca), istim alatom i fontom
+   kojim se popunjavaju bolnički obrasci.
+   ---------------------------------------------------------- */
+/* Samo izrada: vraća bajtove PDF-a. Što se s njima radi — otvara ih se,
+   sprema ili prilaže uz poruku — odlučuje onaj tko ovo pozove. */
+async function rasporedPdfBajti(){
+  {
+    await pdfAlati();
+    const {PDFDocument, rgb} = window.PDFLib;
+    const doc = await PDFDocument.create();
+    doc.registerFontkit(window.fontkit);
+    const font = await doc.embedFont(uBajtove(OBRAZAC_FONT));
+
+    const Š = 841.89, V = 595.28, M = 42;          /* A4 ležeće */
+    const st = doc.addPage([Š, V]);
+    const crna   = rgb(0.10,0.12,0.14);
+    const siva   = rgb(0.49,0.53,0.56);
+    const linija = rgb(0.871,0.890,0.902);
+    const vlas   = rgb(0.925,0.937,0.941);   /* najtanja crta, jedva vidljiva */
+    const zelena = rgb(0.18,0.49,0.31);
+    const blijeda= rgb(0.969,0.976,0.969);
+    const zelenaBlijeda = rgb(0.960,0.976,0.965);   /* izmjenični redak */
+    const ljubicasta = rgb(0.420,0.357,0.620);
+    const ljubicastaBlijeda = rgb(0.961,0.953,0.980);
+
+    const w = (t,sz) => font.widthOfTextAtSize(String(t), sz);
+    const pisi = (t,x,y,sz,boja) => st.drawText(String(t), {x, y, size:sz, font, color:boja||crna});
+    /* podebljano bez drugog fonta: isti tekst dvaput, s malim pomakom */
+    const pisiJako = (t,x,y,sz,boja) => { pisi(t,x,y,sz,boja); pisi(t,x+0.35,y,sz,boja); };
+    const sredina = (t,y,sz,boja,jako) =>
+      (jako?pisiJako:pisi)(t,(Š-w(t,sz))/2,y,sz,boja);
+    /* dijeli tekst u retke koji stanu u zadanu širinu */
+    function retci(t, sz, maks){
+      const out=[]; let red="";
+      String(t||"").split(/\s+/).forEach(r=>{
+        const prob = red ? red+" "+r : r;
+        if(w(prob,sz) <= maks) red = prob;
+        else { if(red) out.push(red); red = r; }
+      });
+      if(red) out.push(red);
+      return out.length ? out : [""];
+    }
+
+    /* --- zaglavlje --- */
+    let y = V - M - 14;
+    const nazivOdjela = db.postavke.odjel || "Odjel za anesteziologiju, reanimatologiju, "+
+                        "intenzivnu medicinu i liječenje boli";
+    sredina("RASPORED PO SALAMA", y, 18.5, zelena, true);
+    {  /* crta točno na sredini bjeline između naslova i naziva odjela,
+          a široka točno koliko i naziv ispod nje */
+       const dz = w(nazivOdjela, 9.5);
+       const yc = y - 14;
+       st.drawLine({start:{x:(Š-dz)/2, y:yc}, end:{x:(Š+dz)/2, y:yc},
+                    thickness:1, color:zelena, opacity:0.4});
+    }
+    y -= 30;
+    sredina(nazivOdjela, y, 9.5, siva);
+    y -= 28;
+    sredina(rsNaziv(rsDatum), y, 15, crna, true);
+    y -= 24;
+
+    /* --- tablica --- */
+    const x0 = M, x1 = M + 190, x2 = Š - M;
+    const visinaRetka = 16.5;
+    const vrh = y;
+    pisi("SALA", x0+2, y-13, 8.5, siva);
+    pisi("RASPOREĐENI", x1+10, y-13, 8.5, siva);
+    y -= 19;
+    st.drawLine({start:{x:x0,y}, end:{x:x2,y}, thickness:0.8, color:linija});
+
+    /* Koliko bi tablica zauzela u punoj veličini. Ako radilišta ima previše
+       za jednu stranicu, sve se ravnomjerno stisne umjesto da ispadne s papira. */
+    const popis = sale().map(sala=>{
+      const u = uSali(sala);
+      /* svako ime u svoj redak — preglednije, a i font ne poznaje razdjelnike */
+      const rd = u.length
+        ? u.map(x=>{ const l = lijecnik(x.lijecnikId); return l ? l.ime : "(obrisan)"; })
+        : ["-"];
+      return {sala, u, rd};
+    });
+    const mjestaZaNapomenu = (rsDan.napomena||"").trim()
+      ? 24 + 24 + retci(rsDan.napomena.trim(), 12, x2-x0-32).length*16 : 0;
+    const raspolozivo = y - (M + 18) - mjestaZaNapomenu;
+    const potrebno = popis.reduce((zb,r)=> zb + Math.max(32, 14 + r.rd.length*visinaRetka), 0);
+    const faktor = potrebno > raspolozivo ? Math.max(0.62, raspolozivo/potrebno) : 1;
+
+    popis.forEach((p,i)=>{
+      const sala = p.sala, u = p.u, rd = p.rd;
+      const h = Math.max(32, 14 + rd.length*visinaRetka) * faktor;
+      if(i % 2 === 1) st.drawRectangle({x:x0, y:y-h, width:x2-x0, height:h, color:zelenaBlijeda});
+      pisiJako(sala, x0+2, y-21*faktor, 11.5*Math.min(1,faktor*1.08), u.length ? crna : siva);
+      rd.forEach((r,j)=> pisi(r, x1+10, y-21*faktor-j*visinaRetka*faktor, 12*Math.min(1,faktor*1.08),
+                              u.length ? crna : siva));
+      y -= h;
+    });
+    st.drawLine({start:{x:x0,y}, end:{x:x2,y}, thickness:0.8, color:linija});
+    st.drawLine({start:{x:x1,y:vrh-19}, end:{x:x1,y}, thickness:0.5, color:vlas});
+
+    /* --- napomena --- */
+    if((rsDan.napomena||"").trim()){
+      y -= 24;
+      const rd = retci(rsDan.napomena.trim(), 12, x2-x0-32);
+      const h = 24 + rd.length*16;
+      st.drawRectangle({x:x0, y:y-h, width:x2-x0, height:h, color:ljubicastaBlijeda});
+      st.drawRectangle({x:x0, y:y-h, width:2.2, height:h, color:ljubicasta, opacity:0.75});
+      pisiJako("NAPOMENA", x0+16, y-18, 8.5, ljubicasta);
+      rd.forEach((r,j)=> pisi(r, x0+16, y-36-j*16, 12, crna));
+      y -= h;
+    }
+
+    /* --- podnožje --- */
+    const pod = rsDan.izmijenio
+      ? "Raspored složio: "+rsDan.izmijenio+(rsDan.kada ? ", "+vrijemeHr(rsDan.kada) : "")
+      : "";
+    st.drawLine({start:{x:x0,y:M+6}, end:{x:x2,y:M+6}, thickness:0.5, color:vlas});
+    if(pod) pisi(pod, x0, M-8, 8.5, siva);
+    const des = "Ispisano "+vrijemeHr(new Date().toISOString());
+    pisi(des, x2-w(des,8.5), M-8, 8.5, siva);
+
+    return await doc.save();
+  }
+}
+
+/* Alat za PDF dolazi s mreže. Ako mreža zapne, čekanje ne smije biti
+   beskonačno — potvrda rasporeda je važnija od priloga. */
+function sNajvise(obecanje, ms){
+  return Promise.race([obecanje,
+    new Promise((_,ne)=> setTimeout(()=>ne(new Error("isteklo vrijeme")), ms))]);
+}
+
+const imeRasporeda = () => "Raspored po salama " + hr(rsDatum).replace(/\.$/,"") + ".pdf";
+
+/* Gumb "Raspored u PDF" — otvara ga u novoj kartici. */
+async function rasporedPdf(){
+  const trak = $("#rs-poruka");
+  trak.innerHTML = '<div class="msg m-info">Izrađujem PDF…</div>';
+  /* prozor se otvara dok još traje klik, inače ga preglednik blokira */
+  let prozor = null;
+  try{ prozor = window.open("", "_blank"); if(prozor) prozor.document.write(
+    '<title>Raspored po salama</title><body style="font:15px -apple-system,system-ui,'+
+    'sans-serif;color:#63707d;padding:40px">Izrađujem PDF…'); }catch(e){}
+  try{
+    const url = URL.createObjectURL(new Blob([await rasporedPdfBajti()], {type:"application/pdf"}));
+    if(prozor){
+      prozor.location.href = url;
+      trak.innerHTML = '<div class="msg m-ok">PDF je otvoren u novoj kartici.</div>';
+    } else {
+      trak.innerHTML = '<div class="msg m-warn">Preglednik je blokirao novu karticu. '+
+        '<a href="'+url+'" target="_blank" style="color:var(--accent);font-weight:650">Otvorite PDF ovdje</a>.</div>';
+    }
+    setTimeout(()=>URL.revokeObjectURL(url), 300000);
+  }catch(e){
+    if(prozor) try{ prozor.close(); }catch(x){}
+    if(window.__pdfDebug) console.log("PDF PAD:", e && e.stack || e);
+    trak.innerHTML = '<div class="msg m-bad"><b>PDF nije izrađen.</b> '+
+      'Za izradu je potrebna internetska veza — alat za PDF dohvaća se s mreže.</div>';
+  }
+  setTimeout(()=>{ if(trak) trak.innerHTML=""; }, 20000);
+}
+
+/* Sprema PDF u Preuzimanja, pod nazivom s datumom. */
+async function spremiRasporedPdf(){
+  const url = URL.createObjectURL(new Blob([await rasporedPdfBajti()], {type:"application/pdf"}));
+  const a = document.createElement("a");
+  a.href = url; a.download = imeRasporeda();
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 60000);
+  return a.download;
+}
+
+/* "2026-11-23T07:12:40Z" → "23.11.2026. u 8:12" (po lokalnom vremenu) */
+function vrijemeHr(s){
+  const d = new Date(s);
+  if(isNaN(d)) return "";
+  return hr(iso(d))+" u "+d.getHours()+":"+dvo(d.getMinutes());
+}
+
+/* ==========================================================
    TAB: EDUKACIJE
    Tablica liječnici × 12 mjeseci, jedna kalendarska godina.
    Upisuje samo voditelj, klikom u kućicu. Svi ostali gledaju.
@@ -2668,7 +3375,7 @@ function crtajLijecnike(){
     '<div style="flex:1"></div><button class="btn ghost sm" onclick="sviOtvori(false)">Zatvori sve</button>';
 
   const tb=$("#lijecniciTbody");
-  if(!db.lijecnici.length){ tb.innerHTML='<tr><td colspan="10"><div class="empty">Još nema unesenih liječnika.</div></td></tr>'; return; }
+  if(!db.lijecnici.length){ tb.innerHTML='<tr><td colspan="12"><div class="empty">Još nema unesenih liječnika.</div></td></tr>'; return; }
   tb.innerHTML = db.lijecnici.map(l=>{
     const ak=l.aktivan!==false, otv=!!l.otvoreno;
     const pred=brojPredanih(l.id), izr=brojUIzradi(l.id);
@@ -2681,6 +3388,8 @@ function crtajLijecnike(){
      '<input style="width:calc(100% - 24px);display:inline-block" value="'+esc(l.ime)+'" onchange="uredi(\''+l.id+'\',\'ime\',this.value)"></td>'+
      '<td><input maxlength="30" value="'+esc(l.korisnik||"")+'" onchange="uredi(\''+l.id+'\',\'korisnik\',this.value)"></td>'+
      '<td><input value="'+esc(l.sifra||"")+'" onchange="uredi(\''+l.id+'\',\'sifra\',this.value)"></td>'+
+     '<td><input type="email" placeholder="bez adrese" value="'+esc(l.posta||"")+'" '+
+       'onchange="uredi(\''+l.id+'\',\'posta\',this.value)"></td>'+
      '<td><select onchange="uredi(\''+l.id+'\',\'skupina\',this.value)">'+
        [1,2,3].map(n=>'<option value="'+n+'"'+(Number(l.skupina||1)===n?' selected':'')+'>'+n+'</option>').join("")+
        '</select></td>'+
@@ -2688,6 +3397,8 @@ function crtajLijecnike(){
      '<td><input type="number" min="0" max="60" value="'+(l.preneseniDani||0)+'" onchange="uredi(\''+l.id+'\',\'preneseniDani\',this.value)"></td>'+
      '<td class="noprint"><button class="btn sm '+(otv?"":"ghost")+'" onclick="prebaciOtvoreno(\''+l.id+'\')">'+
        (otv?"otvoreno":"zatvoreno")+'</button></td>'+
+     '<td class="noprint"><button class="btn sm '+(l.raspored?"":"ghost")+'" title="Smije uređivati raspored po salama, i ništa drugo" '+
+       'onclick="prebaciRaspored(\''+l.id+'\')">'+(l.raspored?"da":"ne")+'</button></td>'+
      '<td>'+stanje+'</td>'+
      '<td><span class="pill '+(ak?"p-ok":"p-neutral")+'">'+(ak?"aktivan":"neaktivan")+'</span></td>'+
      '<td class="noprint">'+(pred?'<button class="btn sm ghost" onclick="otkljucaj(\''+l.id+'\')">Otključaj</button> ':'')+
@@ -2699,14 +3410,21 @@ function crtajLijecnike(){
    u bazi su to "name" i "username". */
 const POLJE_U_BAZI = {ime:"name", korisnik:"username", zvanje:"zvanje", skupina:"skupina",
   pravoDana:"pravoDana", preneseniDani:"preneseniDani", otvoreno:"otvoreno",
-  aktivan:"aktivan", voditelj:"voditelj"};
+  aktivan:"aktivan", voditelj:"voditelj", raspored:"raspored", posta:"posta"};
 function spremiLijecnika(l, polja){
   const t = {};
   polja.forEach(p=>{ if(POLJE_U_BAZI[p]) t[POLJE_U_BAZI[p]] = l[p]; });
   posalji(()=>PB.azuriraj("users", l.id, t), "podaci liječnika");
 }
+const dobraPosta = a => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(a||"").trim());
+
 function uredi(id,polje,vr){
   const l=lijecnik(id); if(!l) return;
+  if(polje==="posta"){
+    const a = String(vr||"").trim();
+    if(a && !dobraPosta(a)){ alert("To ne izgleda kao e-adresa: "+a); crtajSve(); return; }
+    l.posta = a; spremiLijecnika(l,["posta"]); crtajSve(); return;
+  }
   if(polje==="pravoDana"||polje==="preneseniDani") l[polje]=Number(vr)||0;
   else if(polje==="skupina") l.skupina=Number(vr)||1;
   else if(polje==="korisnik"){
@@ -2738,6 +3456,13 @@ function sviOtvori(vr){
 }
 function prebaci(id){ const l=lijecnik(id); if(!l) return;
   l.aktivan = l.aktivan===false; spremiLijecnika(l,["aktivan"]); crtajSve(); }
+/* Kvačica "smije slagati raspored po salama". Dodjeljuje je samo voditelj,
+   i ne otvara ništa osim tog jednog područja. */
+function prebaciRaspored(id){
+  if(!jeAdmin) return;
+  const l=lijecnik(id); if(!l) return;
+  l.raspored = !l.raspored; spremiLijecnika(l,["raspored"]); crtajSve();
+}
 function obrisiLijecnika(id){
   const l=lijecnik(id), n=db.prijave.filter(p=>p.lijecnikId===id).length;
   if(!confirm("Obrisati "+l.ime+(n?" i "+n+" prijava":"")+"?")) return;
@@ -2881,8 +3606,83 @@ function crtajPostavke(){
     spremi(); prGodina=0; crtajSve();
     poruka($("#p-sezPoruka"),"Razdoblje je sada "+opisSezone(db.godina),"ok");
   };
+  if($("#p-sale") && document.activeElement !== $("#p-sale"))
+    $("#p-sale").value = (db.postavke.sale||SALE_ZADANE).join("\n");
+  if($("#p-satSlanja") && document.activeElement !== $("#p-satSlanja")){
+    $("#p-satSlanja").value = db.postavke.satSlanja;
+    $("#p-minutaSlanja").value = dvo(db.postavke.minutaSlanja);
+    $("#p-slanjeUkljuceno").value = db.postavke.slanjeUkljuceno ? "1" : "0";
+  }
+  if($("#p-cuvajPdf") && document.activeElement !== $("#p-cuvajPdf"))
+    $("#p-cuvajPdf").value = db.postavke.cuvajPdfDana;
+  if($("#p-dodatnePoste") && document.activeElement !== $("#p-dodatnePoste"))
+    $("#p-dodatnePoste").value = (db.postavke.dodatnePoste||[]).join("\n");
+  if($("#p-preslikaPosta") && document.activeElement !== $("#p-preslikaPosta"))
+    $("#p-preslikaPosta").value = db.postavke.preslikaPosta||"";
+  if($("#p-probnaPosta") && document.activeElement !== $("#p-probnaPosta"))
+    $("#p-probnaPosta").value = db.postavke.probnaPosta||"";
   $("#p-sluzba").value = db.postavke.sluzba||"";
   $("#p-odjel").value  = db.postavke.odjel||"";
+  $("#p-sale").onblur = e=>{
+    const p = e.target.value.split("\n").map(x=>x.trim()).filter(Boolean);
+    if(!p.length){ poruka($("#p-salePoruka"),"Popis ne smije ostati prazan.","bad");
+      e.target.value = (db.postavke.sale||SALE_ZADANE).join("\n"); return; }
+    db.postavke.sale = p; spremi(); crtajRaspored();
+    poruka($("#p-salePoruka"),"Spremljeno: <b>"+p.length+"</b> radilišta.","ok");
+  };
+  const spremiSatSlanja = ()=>{
+    const h = Math.max(0, Math.min(23, Math.round(Number($("#p-satSlanja").value)||0)));
+    const m = Math.max(0, Math.min(59, Math.round(Number($("#p-minutaSlanja").value)||0)));
+    db.postavke.satSlanja = h; db.postavke.minutaSlanja = m;
+    db.postavke.slanjeUkljuceno = $("#p-slanjeUkljuceno").value === "1";
+    spremi();
+    $("#p-satSlanja").value = h; $("#p-minutaSlanja").value = dvo(m);
+    poruka($("#p-slanjePoruka"), db.postavke.slanjeUkljuceno
+      ? "Poslužitelj šalje potvrđeni raspored svako jutro u <b>"+h+":"+dvo(m)+"</b>."
+      : "Automatsko slanje je isključeno — raspored šaljete sami, gumbom.", "ok");
+  };
+  $("#p-satSlanja").onchange = spremiSatSlanja;
+  $("#p-minutaSlanja").onchange = spremiSatSlanja;
+  $("#p-slanjeUkljuceno").onchange = spremiSatSlanja;
+  $("#p-cuvajPdf").onchange = e=>{
+    const d = Math.max(0, Math.min(3650, Math.round(Number(e.target.value)||0)));
+    db.postavke.cuvajPdfDana = d; spremi(); e.target.value = d;
+    poruka($("#p-cuvajPdfPoruka"), d
+      ? "PDF-ovi se brišu nakon <b>"+d+"</b> dana."
+      : "PDF-ovi se ne brišu.", "ok");
+  };
+  $("#p-dodatnePoste").onblur = e=>{
+    const red = e.target.value.split("\n").map(x=>x.trim()).filter(Boolean);
+    const lose = red.filter(a=>!dobraPosta(a));
+    if(lose.length){
+      poruka($("#p-dodatnePosteOkvir"),"Ovo ne izgleda kao e-adresa: <b>"+
+        esc(lose.join(", "))+"</b>.","bad");
+      e.target.value = (db.postavke.dodatnePoste||[]).join("\n"); return; }
+    db.postavke.dodatnePoste = red; spremi(); crtajRaspored();
+    poruka($("#p-dodatnePosteOkvir"), red.length
+      ? "Stalnih primatelja: <b>"+red.length+"</b>."
+      : "Nema stalnih primatelja.", "ok");
+  };
+  $("#p-preslikaPosta").onchange = e=>{
+    const a = e.target.value.trim();
+    if(a && !dobraPosta(a)){
+      poruka($("#p-preslikaPorukaOkvir"),"To ne izgleda kao e-adresa.","bad");
+      e.target.value = db.postavke.preslikaPosta||""; return; }
+    db.postavke.preslikaPosta = a; spremi(); crtajRaspored();
+    poruka($("#p-preslikaPorukaOkvir"), a
+      ? "Poruke se naslovljavaju na <b>"+esc(a)+"</b>, ostali u skrivenoj kopiji."
+      : "Bez preslike — poruka ide izravno raspoređenima.", "ok");
+  };
+  $("#p-probnaPosta").onchange = e=>{
+    const a = e.target.value.trim();
+    if(a && !dobraPosta(a)){
+      poruka($("#p-probnaPorukaOkvir"),"To ne izgleda kao e-adresa.","bad");
+      e.target.value = db.postavke.probnaPosta||""; return; }
+    db.postavke.probnaPosta = a; spremi(); crtajRaspored();
+    poruka($("#p-probnaPorukaOkvir"), a
+      ? "Sve poruke idu samo na <b>"+esc(a)+"</b>."
+      : "Proba je isključena — poruke idu stvarnim primateljima.", "ok");
+  };
   $("#p-sluzba").onchange = e=>{ db.postavke.sluzba=e.target.value.trim(); spremi(); };
   $("#p-odjel").onchange  = e=>{ db.postavke.odjel =e.target.value.trim(); spremi(); };
   crtajPodlogu();
@@ -3532,7 +4332,7 @@ window.addEventListener("pagehide", ()=>{ odjavaSakriveno = Date.now(); });
 window.addEventListener("pageshow", e=>{ if(e.persisted) odjavaProvjeriPovratak(); });
 
 /* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
-const INACICA = "2.4";
+const INACICA = "3.0";
 function osvjeziNapomenu(){
   $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =
@@ -3764,9 +4564,28 @@ async function vratiIzKopije(d, samo){
       const postoji = db.lijecnici.find(x=> normKor(x.korisnik)===kor);
       const polja = {name:l.ime, zvanje:l.zvanje||"", skupina:Number(l.skupina)||1,
         pravoDana:Number(l.pravoDana)||0, preneseniDani:Number(l.preneseniDani)||0,
-        otvoreno:!!l.otvoreno, aktivan:l.aktivan!==false, voditelj:!!l.voditelj};
+        otvoreno:!!l.otvoreno, aktivan:l.aktivan!==false, voditelj:!!l.voditelj,
+        posta:l.posta||"", raspored:!!l.raspored};
+      /* Kod postojećeg liječnika mijenja se samo ono što datoteka stvarno nosi.
+         Tako popis sa samim adresama ne može pregaziti dane, skupine i ovlasti. */
+      const samoNavedeno = {};
+      ["ime","zvanje","skupina","pravoDana","preneseniDani","otvoreno","aktivan",
+       "voditelj","posta","raspored"].forEach(k=>{
+        if(l[k] !== undefined) samoNavedeno[POLJE_U_BAZI[k]] = polja[POLJE_U_BAZI[k]];
+      });
+      /* Datoteka koja ne nosi ime ne može stvoriti čovjeka — to je dopuna
+         postojećih (npr. sam popis adresa), pa nepoznato korisničko ime
+         prijavljujemo umjesto da tiho otvorimo novi račun. */
+      if(!postoji && l.ime === undefined){
+        pali.push("nepoznato korisničko ime <b>"+esc(kor)+"</b> — preskočeno");
+        continue;
+      }
       try{
-        if(postoji){ await PB.azuriraj("users", postoji.id, polja); br.lj++; }
+        if(postoji){
+          if(Object.keys(samoNavedeno).length)
+            await PB.azuriraj("users", postoji.id, samoNavedeno);
+          br.lj++;
+        }
         else{
           const sifra = "pula"+String(1000+Math.floor(Math.random()*9000));
           const r = await PB.stvori("users", Object.assign({username:kor,
@@ -4010,6 +4829,13 @@ $("#uvozLijecnike").onclick = uveziLijecnike;
 $("#uvozEdu").onclick = uveziEdukacije2026;
 $("#ed-prev").onclick = ()=> promijeniGodinuEdukacija(-1);
 $("#ed-next").onclick = ()=> promijeniGodinuEdukacija(1);
+$("#rs-prev").onclick  = ()=> pomakniRasporedDan(-1);
+$("#rs-next").onclick  = ()=> pomakniRasporedDan(1);
+$("#rs-danas").onclick = ()=> naDanRasporeda(iso(new Date()));
+$("#rs-datum").onchange = e => naDanRasporeda(e.target.value);
+$("#rs-napomena").onblur = spremiNapomenuDana;
+$("#rs-pdf").onclick = rasporedPdf;
+
 $("#iz-prev").onclick = ()=> promijeniMjesec(-1);
 $("#iz-next").onclick = ()=> promijeniMjesec(1);
 $("#iz-prekidac").onclick = prebaciIzuzetke;

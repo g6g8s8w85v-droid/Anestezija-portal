@@ -1,9 +1,9 @@
-# PocketBase za Railway — poslužuje i bazu. i sam portal
+# PocketBase za Railway — poslužuje i bazu i sam portal
 FROM alpine:3.20
 
 ARG PB_VERSION=0.40.2
 
-ARG PORTAL_VERZIJA=5
+ARG PORTAL_VERZIJA=6
 RUN apk add --no-cache ca-certificates unzip wget tzdata && echo "gradnja ${PORTAL_VERZIJA}"
 
 # Poslužitelj inače radi po UTC-u, a jutarnje slanje mora ići po našem satu.

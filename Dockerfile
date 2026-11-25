@@ -3,7 +3,8 @@ FROM alpine:3.20
 
 ARG PB_VERSION=0.40.2
 
-RUN apk add --no-cache ca-certificates unzip wget tzdata
+ARG PORTAL_VERZIJA=5
+RUN apk add --no-cache ca-certificates unzip wget tzdata && echo "gradnja ${PORTAL_VERZIJA}"
 
 # Poslužitelj inače radi po UTC-u, a jutarnje slanje mora ići po našem satu.
 ENV TZ=Europe/Zagreb
@@ -14,16 +15,11 @@ RUN wget -O /tmp/pb.zip \
  && rm /tmp/pb.zip
 
 # --- osiguranje da svaka objava stvarno prekopira novi portal ---
-# Railway sam dodaje oznaku zadnjeg commita. Kako se ona mijenja pri svakoj
-# izmjeni na GitHubu, sve ispod ove linije gradi se iznova i spremnik gradnje
-# ne može podvaliti staru datoteku.
 # Railwayevu oznaku commita ne prosljeđuje gradnji, pa se na nju nije moguće
 # osloniti — provjereno 25.11.2026., kad je gradnja "uspjela" a donijela staru
-# datoteku. Zato vrijedi samo ovaj broj: POVEĆAJ GA ZA JEDAN pri svakoj izmjeni
-# datoteka u pb_public ili pb_hooks. Time se poništava spremnik gradnje i obje
-# COPY naredbe ispod izvršavaju se nanovo.
-ARG PORTAL_VERZIJA=4
-RUN echo "verzija ${PORTAL_VERZIJA}" > /pb/verzija.txt
+# datoteku. Zato vrijedi samo broj PORTAL_VERZIJA gore: POVEĆAJ GA ZA JEDAN pri
+# svakoj izmjeni u pb_public ili pb_hooks. Stoji namjerno uz prvu naredbu, da
+# poništi baš sve slojeve ispod sebe.
 
 # portal (index.html) — Railway ga preuzima iz repozitorija
 COPY pb_public /pb/pb_public
@@ -31,8 +27,11 @@ COPY pb_public /pb/pb_public
 # rutine koje se vrte na poslužitelju (jutarnje slanje rasporeda, čišćenje)
 COPY pb_hooks /pb/pb_hooks
 
-# ispis u zapisu gradnje: veličina mora biti oko 400 KB, ne 950 KB
-RUN ls -la /pb/pb_public /pb/pb_hooks
+# Otisak gradnje na javnoj adresi: anestezijapu.up.railway.app/verzija.txt
+# Odande se u svakom trenutku vidi koja je gradnja stvarno gore, bez Console.
+RUN echo "gradnja ${PORTAL_VERZIJA}" > /pb/pb_public/verzija.txt \
+ && ls -la /pb/pb_public /pb/pb_hooks >> /pb/pb_public/verzija.txt \
+ && cat /pb/pb_public/verzija.txt
 
 EXPOSE 8080
 

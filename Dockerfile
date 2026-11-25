@@ -1,4 +1,4 @@
-# PocketBase za Railway — poslužuje i bazu i sam portal
+# PocketBase za Railway — poslužuje i bazu. i sam portal
 FROM alpine:3.20
 
 ARG PB_VERSION=0.40.2

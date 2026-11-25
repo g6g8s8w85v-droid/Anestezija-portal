@@ -17,10 +17,13 @@ RUN wget -O /tmp/pb.zip \
 # Railway sam dodaje oznaku zadnjeg commita. Kako se ona mijenja pri svakoj
 # izmjeni na GitHubu, sve ispod ove linije gradi se iznova i spremnik gradnje
 # ne može podvaliti staru datoteku.
-ARG RAILWAY_GIT_COMMIT_SHA=nepoznato
-# Rezervni ručni prekidač: ako ikad zatreba, povećaj broj za jedan.
-ARG PORTAL_VERZIJA=3
-RUN echo "${RAILWAY_GIT_COMMIT_SHA} / ${PORTAL_VERZIJA}" > /pb/verzija.txt
+# Railwayevu oznaku commita ne prosljeđuje gradnji, pa se na nju nije moguće
+# osloniti — provjereno 25.11.2026., kad je gradnja "uspjela" a donijela staru
+# datoteku. Zato vrijedi samo ovaj broj: POVEĆAJ GA ZA JEDAN pri svakoj izmjeni
+# datoteka u pb_public ili pb_hooks. Time se poništava spremnik gradnje i obje
+# COPY naredbe ispod izvršavaju se nanovo.
+ARG PORTAL_VERZIJA=4
+RUN echo "verzija ${PORTAL_VERZIJA}" > /pb/verzija.txt
 
 # portal (index.html) — Railway ga preuzima iz repozitorija
 COPY pb_public /pb/pb_public

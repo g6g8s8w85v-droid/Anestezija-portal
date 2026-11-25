@@ -14,6 +14,10 @@
    stalni primatelji, čuvanje PDF-ova) čitaju se iz zbirke "postavke", pa se
    mijenjaju u portalu bez diranja poslužitelja.
 
+   Poruka nosi raspored u samom tekstu, bez priloga: čita se na mobitelu bez
+   otvaranja ičega, a filtri za neželjenu poštu blaže gledaju poruke bez
+   privitka. Tko treba PDF za ispis, izradi ga u portalu.
+
    POŠTA NE IDE SMTP-om. Railway blokira odlazne poštanske portove (587 i 465
    isteknu, 443 je otvoren), pa PocketBaseov ugrađeni mailer ovdje ne može
    raditi. Poruke se predaju Brevu običnim web pozivom na port 443.
@@ -147,8 +151,6 @@ function tijeloPoruke(datum, stavke, napomena, salePopis){
     h += '<p style="margin:16px 0 0;padding:10px 14px;background:#f4f2fa;' +
          'border-left:3px solid #6b5b9e"><b>Napomena</b><br>' + napomena + '</p>';
   }
-  h += '<p style="margin:18px 0 0;font-size:12px;color:#7a858e">' +
-       'Poruku šalje portal Odjela automatski. Raspored je i u portalu.</p>';
   h += '</div>';
   return h;
 }
@@ -177,7 +179,7 @@ function primatelji(stavke, p){
 
 // ---------------------------------------------------------------- slanje
 
-function posaljiZaDatum(datum, razlog){
+function posaljiZaDatum(datum, razlog, prisilno){
   const p = postavke();
   if (!p) { console.log("[raspored] postavke se ne mogu pročitati"); return false; }
 
@@ -187,7 +189,7 @@ function posaljiZaDatum(datum, razlog){
     console.log("[raspored] " + datum + ": nije potvrđen — ne šaljem");
     return false;
   }
-  if (String(dan.getString("poslano") || "")) {
+  if (!prisilno && String(dan.getString("poslano") || "")) {
     console.log("[raspored] " + datum + ": već poslano " + dan.getString("poslano"));
     return false;
   }
@@ -223,24 +225,6 @@ function posaljiZaDatum(datum, razlog){
   };
   if (skriveno.length) tijelo.bcc = skriveno;
   if (komu.preslika)   tijelo.replyTo = {email: komu.preslika};
-
-  /* Prilog se predaje adresom, ne sadržajem — Brevo ga sam preuzme s
-     poslužitelja. Polje "pdf" nije zaštićeno, pa je datoteka dostupna
-     preko svoje adrese; naziv nosi slučajni dodatak pa je nepogodiva. */
-  const naziv = String(dan.get("pdf") || "");
-  if (naziv) {
-    const osnova = String($app.settings().meta.appURL || "").replace(/\/+$/, "");
-    if (osnova) {
-      tijelo.attachment = [{
-        url:  osnova + "/api/files/" + dan.baseFilesPath() + "/" + naziv,
-        name: naziv
-      }];
-    } else {
-      console.log("[raspored] appURL nije postavljen — šaljem bez priloga");
-    }
-  } else {
-    console.log("[raspored] " + datum + ": nema spremljenog PDF-a, šaljem bez priloga");
-  }
 
   try {
     const odg = $http.send({
@@ -322,4 +306,16 @@ function ciscenje(){
   return stari.length;
 }
 
-module.exports = { jutro: jutro, ciscenje: ciscenje, posaljiZaDatum: posaljiZaDatum };
+/* Ručno slanje iz portala. Vraća opis onoga što se dogodilo, da portal ima
+   što pokazati korisniku umjesto da nagađa. */
+function rucno(datum){
+  const ispravak = (function(){
+    const d = danZaDatum(datum);
+    return !!(d && String(d.getString("poslano") || ""));
+  })();
+  const uspjeh = posaljiZaDatum(datum, "ručno", true);
+  return {ok: uspjeh, ispravak: ispravak};
+}
+
+module.exports = { jutro: jutro, ciscenje: ciscenje,
+                   posaljiZaDatum: posaljiZaDatum, rucno: rucno };

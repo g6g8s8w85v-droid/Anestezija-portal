@@ -850,15 +850,6 @@
     </div>
     <div id="p-slanjePoruka"></div>
 
-    <h2 style="margin-top:26px">Čuvanje poslanih rasporeda</h2>
-    <p class="hint">Poslani PDF se čuva uz taj dan, da se uvijek može dohvatiti baš ona poruka
-      koja je otišla. Nakon ovoliko dana poslužitelj ga briše — sam zapis o danu, imena i
-      napomena ostaju zauvijek, pa se raspored uvijek može izraditi nanovo.
-      Upišite <b>0</b> ako želite da se PDF-ovi nikad ne brišu.</p>
-    <div class="row" style="max-width:320px;align-items:flex-end">
-      <div><label>Dana</label><input type="number" id="p-cuvajPdf" min="0" max="3650" style="width:120px"></div>
-    </div>
-    <div id="p-cuvajPdfPoruka"></div>
   </div>
 
   <div class="card">
@@ -1163,19 +1154,6 @@ const PB = {
       if(str >= (r.totalPages||1)) break;
     }
     return out;
-  },
-  /* Datoteka ide zasebno, jer se šalje kao multipart, ne kao JSON. */
-  async posaljiDatoteku(zbirka, id, polje, ime, bajti){
-    const fd = new FormData();
-    fd.append(polje, new Blob([bajti], {type:"application/pdf"}), ime);
-    const o = {method:"PATCH", body:fd, headers:{}};
-    if(PB.token) o.headers["Authorization"] = PB.token;
-    const odg = await fetch(PB.osnova+"/api/collections/"+zbirka+"/records/"+id, o);
-    if(!odg.ok){
-      let p = null; try{ p = JSON.parse(await odg.text()); }catch(e){}
-      throw new Error((p && p.message) || ("Greška "+odg.status));
-    }
-    return odg.json();
   },
   stvori: (z,p)   => PB.zovi("/api/collections/"+z+"/records", {method:"POST", tijelo:p}),
   azuriraj: (z,id,p)=> PB.zovi("/api/collections/"+z+"/records/"+id, {method:"PATCH", tijelo:p}),
@@ -2375,25 +2353,10 @@ async function potvrdiRaspored(){
     poruka($("#rs-poruka"), "Nema koga potvrditi — nitko nije raspoređen.", "warn"); return;
   }
   rsDan.potvrdjen = true;
-  poruka($("#rs-poruka"), "Potvrđujem i spremam PDF…", "info");
   await zabiljeziIzmjenu();
-  /* PDF se sprema uz dan jer ga poslužitelj ujutro treba poslati, a tada
-     nitko nije prijavljen i nema tko ga izraditi. */
-  let spremljen = false;
-  try{
-    if(rsDanId){
-      const bajti = await sNajvise(rasporedPdfBajti(), 20000);
-      await sNajvise(PB.posaljiDatoteku("rasporedDani", rsDanId, "pdf",
-        imeRasporeda(), bajti), 20000);
-      spremljen = true;
-    }
-  }catch(e){ if(window.__pdfDebug) console.log("PDF u bazu nije spremljen:", e.message); }
   crtajRaspored();
-  poruka($("#rs-poruka"), spremljen
-    ? "Raspored je potvrđen i zaključan, PDF je spremljen uz taj dan."
-    : "Raspored je potvrđen i zaključan. <b>PDF nije spremljen</b> — "+
-      "jutarnje slanje neće imati prilog. Provjerite vezu pa otključajte i potvrdite ponovno.",
-    spremljen ? "ok" : "warn");
+  poruka($("#rs-poruka"),
+    "Raspored je potvrđen i zaključan. Poslužitelj ga ujutro šalje sam.", "ok");
 }
 async function otkljucajRaspored(){
   if(!smijeRaspored() || !rsDan.potvrdjen) return;
@@ -2620,41 +2583,39 @@ function pripremiPoruku(){
   const preslika = proba ? "" : (db.postavke.preslikaPosta||"").trim();
   const naslovljeno = preslika ? [preslika] : prima;
   const skriveno = preslika ? prima : [];
-  const veza = "mailto:" + encodeURIComponent(naslovljeno.join(","))
-    + "?subject=" + encodeURIComponent((jeIspravak() ? "ISPRAVAK — " : "") +
-        "Raspored po salama — " + hr(rsDatum))
-    + (skriveno.length ? "&bcc=" + encodeURIComponent(skriveno.join(",")) : "")
-    + "&body=" + encodeURIComponent(rasporedTekst());
-  if(veza.length > 1900)
-    return {ok:false, vrsta:"bad", poruka:"Poruka je preduga za ovaj način slanja. "+
-      "Pošaljite raspored kao PDF."};
-  return {ok:true, veza, prima, proba, preslika, skriveno};
+  return {ok:true, prima, proba, preslika, skriveno};
 }
 
 /* Prilog se iz preglednika ne može sam zakvačiti na poruku — to zna samo
    poslužitelj koji šalje. Zato ovdje radimo sljedeće najbolje: PDF se izradi
    i spremi u Preuzimanja, poruka se otvori s upisanim primateljima, a ostaje
    ga samo povući u nju. */
+/* Ručno slanje — za slučaj kad poruka treba otići izvan uobičajenog sata.
+   Ne otvara se nikakav program za poštu: poruku šalje poslužitelj, istim
+   putem i u istom obliku kao ujutro. */
 async function posaljiRaspored(){
   if(!smijeRaspored()) return;
   const r = pripremiPoruku();
   if(!r.ok){ poruka($("#rs-poruka"), r.poruka, r.vrsta); return; }
-  let ime = null;
-  poruka($("#rs-poruka"), "Izrađujem PDF…", "info");
-  rsDan.poslano = new Date().toISOString();
-  zabiljeziIzmjenu();
-  try{ ime = await spremiRasporedPdf(); }
-  catch(e){ if(window.__pdfDebug) console.log("PDF PAD:", e && e.stack || e); }
-  /* poruka se otvara tek kad je datoteka spremljena, da je preuzimanje ne prekine */
-  setTimeout(()=>{ window.location.href = r.veza; }, 600);
-  poruka($("#rs-poruka"),
-    (r.proba ? "Poruka ide samo na probnu adresu <b>"+esc(r.proba)+"</b>."
-     : r.preslika ? "Poruka je naslovljena na <b>"+esc(r.preslika)+"</b>, a <b>"+
-         r.skriveno.length+"</b> raspoređenih je u skrivenoj kopiji."
-     : "Poruka za <b>"+r.prima.length+"</b> primatelja.")+
-    (ime ? " PDF <b>"+esc(ime)+"</b> je u Preuzimanjima — povucite ga u poruku kao prilog."
-         : " <b>PDF nije izrađen</b> (za to treba internetska veza), poruka nosi raspored u tekstu."),
-    ime ? "ok" : "warn");
+
+  const gumb = $("#rs-posta") ? $("#rs-posta").querySelector("button") : null;
+  if(gumb) gumb.disabled = true;
+  poruka($("#rs-poruka"), "Šaljem…", "info");
+  try{
+    const odg = await PB.zovi("/api/raspored-posalji",
+      {method:"POST", tijelo:{datum: rsDatum}});
+    rsDan.poslano = new Date().toISOString();
+    poruka($("#rs-poruka"), (odg && odg.poruka ? odg.poruka : "Poslano.")+" "+
+      (r.proba ? "Ide samo na probnu adresu <b>"+esc(r.proba)+"</b>."
+       : r.preslika ? "Naslovljeno na <b>"+esc(r.preslika)+"</b>, ostali u skrivenoj kopiji."
+       : "Primatelja: <b>"+r.prima.length+"</b>."), "ok");
+  }catch(e){
+    poruka($("#rs-poruka"), "Nije poslano: "+(e.message||"greška")+
+      " Pogledajte zapisnik poslužitelja.", "bad");
+  }finally{
+    if(gumb) gumb.disabled = false;
+    await osvjeziRaspored();
+  }
 }
 
 function crtajPrimatelje(){
@@ -3613,8 +3574,6 @@ function crtajPostavke(){
     $("#p-minutaSlanja").value = dvo(db.postavke.minutaSlanja);
     $("#p-slanjeUkljuceno").value = db.postavke.slanjeUkljuceno ? "1" : "0";
   }
-  if($("#p-cuvajPdf") && document.activeElement !== $("#p-cuvajPdf"))
-    $("#p-cuvajPdf").value = db.postavke.cuvajPdfDana;
   if($("#p-dodatnePoste") && document.activeElement !== $("#p-dodatnePoste"))
     $("#p-dodatnePoste").value = (db.postavke.dodatnePoste||[]).join("\n");
   if($("#p-preslikaPosta") && document.activeElement !== $("#p-preslikaPosta"))
@@ -3644,13 +3603,6 @@ function crtajPostavke(){
   $("#p-satSlanja").onchange = spremiSatSlanja;
   $("#p-minutaSlanja").onchange = spremiSatSlanja;
   $("#p-slanjeUkljuceno").onchange = spremiSatSlanja;
-  $("#p-cuvajPdf").onchange = e=>{
-    const d = Math.max(0, Math.min(3650, Math.round(Number(e.target.value)||0)));
-    db.postavke.cuvajPdfDana = d; spremi(); e.target.value = d;
-    poruka($("#p-cuvajPdfPoruka"), d
-      ? "PDF-ovi se brišu nakon <b>"+d+"</b> dana."
-      : "PDF-ovi se ne brišu.", "ok");
-  };
   $("#p-dodatnePoste").onblur = e=>{
     const red = e.target.value.split("\n").map(x=>x.trim()).filter(Boolean);
     const lose = red.filter(a=>!dobraPosta(a));
@@ -4332,7 +4284,7 @@ window.addEventListener("pagehide", ()=>{ odjavaSakriveno = Date.now(); });
 window.addEventListener("pageshow", e=>{ if(e.persisted) odjavaProvjeriPovratak(); });
 
 /* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
-const INACICA = "3.0";
+const INACICA = "3.1";
 function osvjeziNapomenu(){
   $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =

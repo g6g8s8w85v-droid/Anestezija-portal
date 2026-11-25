@@ -3,7 +3,10 @@ FROM alpine:3.20
 
 ARG PB_VERSION=0.40.2
 
-RUN apk add --no-cache ca-certificates unzip wget
+RUN apk add --no-cache ca-certificates unzip wget tzdata
+
+# Poslužitelj inače radi po UTC-u, a jutarnje slanje mora ići po našem satu.
+ENV TZ=Europe/Zagreb
 
 RUN wget -O /tmp/pb.zip \
       https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_linux_amd64.zip \
@@ -22,8 +25,11 @@ RUN echo "${RAILWAY_GIT_COMMIT_SHA} / ${PORTAL_VERZIJA}" > /pb/verzija.txt
 # portal (index.html) — Railway ga preuzima iz repozitorija
 COPY pb_public /pb/pb_public
 
-# ispis u zapisu gradnje: veličina mora biti oko 200 KB, ne 950 KB
-RUN ls -la /pb/pb_public
+# rutine koje se vrte na poslužitelju (jutarnje slanje rasporeda, čišćenje)
+COPY pb_hooks /pb/pb_hooks
+
+# ispis u zapisu gradnje: veličina mora biti oko 400 KB, ne 950 KB
+RUN ls -la /pb/pb_public /pb/pb_hooks
 
 EXPOSE 8080
 

@@ -42,14 +42,43 @@ function danasLokalno(){
   return d.getFullYear() + "-" + dvo(d.getMonth() + 1) + "-" + dvo(d.getDate());
 }
 
-/* JSON polje zna doći kao objekt ili kao tekst, ovisno o verziji. */
+/* JSON polje PocketBase ne vraća kao obični objekt. Ovisno o verziji dolazi
+   kao poseban tip s metodom String(), kao tekst, ili kao niz bajtova. Zato se
+   redom pokušava sve troje; prvi oblik koji da smislen rezultat se uzima. */
 function citajJson(zapis, polje){
   const v = zapis.get(polje);
   if (v === null || v === undefined) return {};
+
+  /* 1. već upotrebljiv objekt */
+  if (typeof v === "object" && v !== null && v.postavke !== undefined) return v;
+
+  /* 2. tip s vlastitim ispisom (JSONRaw) */
   try {
-    if (typeof v === "object") return JSON.parse(JSON.stringify(v));
-    return JSON.parse(String(v));
-  } catch (e) { return {}; }
+    if (typeof v.String === "function") {
+      const s = v.String();
+      if (s && s.charAt(0) === "{") return JSON.parse(s);
+    }
+  } catch (e) {}
+
+  /* 3. obični tekst */
+  try {
+    const s = String(v);
+    if (s && s.charAt(0) === "{") return JSON.parse(s);
+  } catch (e) {}
+
+  /* 4. niz bajtova */
+  try {
+    const niz = JSON.parse(JSON.stringify(v));
+    if (Array.isArray(niz) && niz.length) {
+      let s = "";
+      for (let i = 0; i < niz.length; i++) s += String.fromCharCode(niz[i]);
+      if (s.charAt(0) === "{") return JSON.parse(decodeURIComponent(escape(s)));
+    }
+  } catch (e) {}
+
+  console.log("[raspored] polje " + polje + " se ne može pročitati (tip: " +
+              (typeof v) + ")");
+  return {};
 }
 
 function postavke(){

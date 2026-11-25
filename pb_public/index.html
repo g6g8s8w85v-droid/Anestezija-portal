@@ -2598,6 +2598,23 @@ async function posaljiRaspored(){
   const r = pripremiPoruku();
   if(!r.ok){ poruka($("#rs-poruka"), r.poruka, r.vrsta); return; }
 
+  /* Slanje se ne može povući, a gumb stoji uz one koji se klikaju svaki dan.
+     Zato pitanje koje doslovno kaže komu poruka ide. */
+  {
+    const komu = r.proba
+      ? "samo na probnu adresu " + r.proba
+      : r.preslika
+        ? r.preslika + ", a " + r.skriveno.length +
+          (r.skriveno.length === 1 ? " raspoređeni ide" : " raspoređenih ide") +
+          " u skrivenu kopiju"
+        : r.prima.length + (r.prima.length === 1 ? " primatelju" : " primatelja");
+    const pitanje = (jeIspravak()
+        ? "ISPRAVAK — raspored za " + hr(rsDatum) + " je već poslan.\n\n"
+        : "Slanje rasporeda za " + hr(rsDatum) + ".\n\n") +
+      "Poruka ide " + komu + ".\n\nPoslati?";
+    if(!confirm(pitanje)) return;
+  }
+
   const gumb = $("#rs-posta") ? $("#rs-posta").querySelector("button") : null;
   if(gumb) gumb.disabled = true;
   poruka($("#rs-poruka"), "Šaljem…", "info");
@@ -4284,7 +4301,7 @@ window.addEventListener("pagehide", ()=>{ odjavaSakriveno = Date.now(); });
 window.addEventListener("pageshow", e=>{ if(e.persisted) odjavaProvjeriPovratak(); });
 
 /* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
-const INACICA = "3.1";
+const INACICA = "3.2";
 function osvjeziNapomenu(){
   $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =

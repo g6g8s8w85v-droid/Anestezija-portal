@@ -195,6 +195,7 @@
   .msg{padding:10px 13px;border-radius:10px;font-size:13.5px;margin:8px 0;line-height:1.45}
   .m-ok{background:#e6f3eb;color:var(--ok);border:1px solid #c2e0cf}
   .m-warn{background:#fbf0dc;color:var(--warn);border:1px solid #e9d5ab}
+  .m-tiho{background:#f3f3f1;color:#5f5e5a;border:1px solid #e3e2dd}
   .m-bad{background:#f9e8e8;color:var(--bad);border:1px solid #ebc7c7}
   .m-info{background:var(--accent-2-soft);color:#5a4b86;border:1px solid #ddd5ef}
   .empty{color:var(--muted);font-size:13.5px;padding:22px;text-align:center;
@@ -2347,6 +2348,50 @@ const smijeMijenjati = () => smijeRaspored() && !rsDan.potvrdjen;
 /* Dan je bio poslan pa se u međuvremenu mijenjao — sljedeća poruka je ispravak. */
 const jeIspravak = () => !!rsDan.poslano;
 
+/* ----------------------------------------------------------
+   KAD POSLUŽITELJ ŠALJE
+   Rutina gleda jednom dnevno, u zadanom satu, i to raspored ZA TAJ DAN.
+   Zato se trenutak slanja računa iz datuma koji je otvoren, a ne iz "sutra".
+   Prozor je sat vremena — koliko i na poslužitelju; nakon njega rutina
+   toga dana više ne gleda, pa obavijest mora reći istinu i o tome.
+   ---------------------------------------------------------- */
+const PROZOR_SLANJA = 60;          /* minuta, isto kao u raspored_alat.js */
+const DOPUST_IZMJENE = 10000;      /* ms; spremanje slanja i samo dira zapis */
+
+function trenutakSlanja(){
+  if(!rsDatum) return null;
+  const sat = Number(db.postavke.satSlanja), min = Number(db.postavke.minutaSlanja) || 0;
+  if(!isFinite(sat)) return null;
+  const [g, m, d] = rsDatum.split("-").map(Number);
+  return new Date(g, m-1, d, sat, min, 0, 0);
+}
+/* Hoće li rutina za ovaj dan uopće još pogledati. */
+function slanjePredstoji(){
+  if(!db.postavke.slanjeUkljuceno) return false;
+  const t = trenutakSlanja();
+  return !!t && Date.now() < t.getTime() + PROZOR_SLANJA*60000;
+}
+/* Ima li promjena koja je novija od zadnjeg slanja. */
+function promjenaNijePoslana(){
+  if(!rsDan.poslano || !rsDan.kada) return false;
+  return new Date(rsDan.kada).getTime() - new Date(rsDan.poslano).getTime() > DOPUST_IZMJENE;
+}
+/* Jedno od pet stanja — na njemu visi i boja okvira i njegov tekst. */
+function stanjeSlanja(){
+  if(!rsDan.potvrdjen)        return "nepotvrdjen";
+  if(!rsDan.poslano)          return slanjePredstoji() ? "ceka" : "ceka-bez-rutine";
+  if(!promjenaNijePoslana())  return "poslano";
+  return slanjePredstoji() ? "izmjena" : "izmjena-bez-rutine";
+}
+/* "ponedjeljak, 30.11.2026. u 7:00" — DANI_PUNI portal već ima, s
+   ponedjeljkom na nuli, pa se nedjeljni getDay() mora pomaknuti. */
+function opisTrenutka(){
+  const t = trenutakSlanja();
+  if(!t) return "";
+  return DANI_PUNI[(t.getDay()+6)%7].toLowerCase() + ", " + hr(rsDatum) + " u " +
+         t.getHours() + ":" + dvo(t.getMinutes());
+}
+
 async function potvrdiRaspored(){
   if(!smijeRaspored() || rsDan.potvrdjen) return;
   if(!(db.raspored||[]).length){
@@ -2355,8 +2400,8 @@ async function potvrdiRaspored(){
   rsDan.potvrdjen = true;
   await zabiljeziIzmjenu();
   crtajRaspored();
-  poruka($("#rs-poruka"),
-    "Raspored je potvrđen i zaključan. Poslužitelj ga ujutro šalje sam.", "ok");
+  /* Nema prolazne poruke: ono što je prije bljesnulo i nestalo sada trajno
+     stoji u okviru iznad gumba, zajedno sa stvarnim trenutkom slanja. */
 }
 async function otkljucajRaspored(){
   if(!smijeRaspored() || !rsDan.potvrdjen) return;
@@ -2675,18 +2720,59 @@ function crtajPrimatelje(){
       ? '<div class="hint" style="margin-top:6px">Poruka se naslovljava na <b>'+
         esc(db.postavke.preslikaPosta.trim())+'</b>, raspoređeni idu u skrivenu kopiju.</div>'
       : "")+
-    (rsDan.potvrdjen && db.postavke.slanjeUkljuceno && !rsDan.poslano
-      ? '<div class="hint" style="margin-top:6px">Poslužitelj će ga poslati sam u <b>'+
-        db.postavke.satSlanja+":"+dvo(db.postavke.minutaSlanja)+
-        '</b>. Gumbom ispod možete poslati i odmah.</div>' : "")+
-    (rsDan.potvrdjen ? "" :
-      '<div class="msg m-warn" style="margin-top:10px">Raspored nije potvrđen, pa se ne može '+
-      'poslati. Potvrdite ga gumbom <b>Potvrdi raspored</b> gore.</div>')+
+    obavijestOSlanju()+
     '<div style="margin-top:10px"><button class="btn" onclick="posaljiRaspored()"'+
       (rsDan.potvrdjen ? "" : " disabled")+'>'+
       (jeIspravak() ? "Pošalji ispravak" : "Pošalji kolegama")+'</button>'+
       (rsDan.poslano ? '<span class="hint" style="margin-left:10px">Zadnje slanje: '+
         esc(vrijemeHr(rsDan.poslano))+'</span>' : "")+'</div>';
+}
+
+/* ----------------------------------------------------------
+   OBAVIJEST O SLANJU
+   Stoji trajno iznad gumba, ne nestaje kao poruka nakon potvrde, i u svakom
+   trenutku odgovara na jedno pitanje: hoće li ovo itko dobiti i kada.
+   ---------------------------------------------------------- */
+function obavijestOSlanju(){
+  const kad = opisTrenutka();
+  const poslano = rsDan.poslano ? vrijemeHr(rsDan.poslano) : "";
+  let vrsta = "m-ok", tekst = "";
+
+  switch(stanjeSlanja()){
+    case "nepotvrdjen":
+      vrsta = "m-warn";
+      tekst = "Raspored nije potvrđen, pa se ne može poslati. Potvrdite ga gumbom "+
+              "<b>Potvrdi raspored</b> gore.";
+      break;
+    case "ceka":
+      tekst = "Raspored je potvrđen i zaključan. Poslužitelj ga šalje <b>"+esc(kad)+"</b>.";
+      break;
+    case "ceka-bez-rutine":
+      vrsta = "m-warn";
+      tekst = db.postavke.slanjeUkljuceno
+        ? "Raspored je potvrđen, ali trenutak automatskog slanja ("+esc(kad)+
+          ") je prošao. Pošaljite ga gumbom ispod."
+        : "Raspored je potvrđen. Automatsko slanje je isključeno u Postavkama, "+
+          "pa ga pošaljite gumbom ispod.";
+      break;
+    case "poslano":
+      vrsta = "m-tiho";
+      tekst = "Raspored je poslan <b>"+esc(poslano)+"</b> i od tada nije mijenjan. "+
+              "Ne šalje se ponovno.";
+      break;
+    case "izmjena":
+      vrsta = "m-warn";
+      tekst = "Promjena nakon slanja u "+esc(poslano)+" još nije poslana. "+
+              "Poslužitelj je šalje kao ispravak <b>"+esc(kad)+"</b> — ili je pošaljite "+
+              "odmah gumbom ispod.";
+      break;
+    case "izmjena-bez-rutine":
+      vrsta = "m-warn";
+      tekst = "Promjena nakon slanja u "+esc(poslano)+" još nije poslana, a trenutak "+
+              "automatskog slanja je prošao. Pošaljite ispravak gumbom ispod.";
+      break;
+  }
+  return '<div class="msg '+vrsta+'" style="margin-top:10px">'+tekst+'</div>';
 }
 
 /* ----------------------------------------------------------
@@ -4301,7 +4387,7 @@ window.addEventListener("pagehide", ()=>{ odjavaSakriveno = Date.now(); });
 window.addEventListener("pageshow", e=>{ if(e.persisted) odjavaProvjeriPovratak(); });
 
 /* Oznaka inačice — da se na prvi pogled vidi koja je verzija portala objavljena. */
-const INACICA = "3.2";
+const INACICA = "3.3";
 function osvjeziNapomenu(){
   $("#lg-inacica").textContent = INACICA;
   $("#lg-napomena").innerHTML =

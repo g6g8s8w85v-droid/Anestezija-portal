@@ -35,6 +35,23 @@
 
 const PROZOR_MINUTA = 60;
 
+/* Koliko vrijeme zadnje izmjene smije biti novije od vremena slanja a da se
+   to još ne računa kao prava izmjena. Samo spremanje slanja dira zapis, pa
+   mu "updated" bude koju milisekundu veći od "poslano"; bez ovog dopuštenja
+   bi rutina svaki poslani dan odmah držala izmijenjenim. */
+const DOPUST_IZMJENE_MS = 10000;
+
+/* Je li dan mijenjan nakon što je poslan. */
+function mijenjanNakonSlanja(dan){
+  const poslano = String(dan.getString("poslano") || "");
+  if (!poslano) return false;
+  const kada = String(dan.getString("updated") || "");
+  if (!kada) return false;
+  const a = Date.parse(kada), b = Date.parse(poslano);
+  if (!isFinite(a) || !isFinite(b)) return false;
+  return a - b > DOPUST_IZMJENE_MS;
+}
+
 // ---------------------------------------------------------------- pomoćno
 
 /* Bez padStart — PocketBaseov JavaScript ne poznaje svaku noviju funkciju,
@@ -189,9 +206,17 @@ function posaljiZaDatum(datum, razlog, prisilno){
     console.log("[raspored] " + datum + ": nije potvrđen — ne šaljem");
     return false;
   }
+  /* Već poslan dan preskačemo — osim ako je od tada mijenjan. Tada ide
+     ispravak, jer bi inače promjena učinjena nakon slanja ostala samo u
+     portalu, a kolege bi u rukama imale staru verziju. */
   if (!prisilno && String(dan.getString("poslano") || "")) {
-    console.log("[raspored] " + datum + ": već poslano " + dan.getString("poslano"));
-    return false;
+    if (!mijenjanNakonSlanja(dan)) {
+      console.log("[raspored] " + datum + ": već poslano " + dan.getString("poslano") +
+                  ", od tada nije mijenjano");
+      return false;
+    }
+    console.log("[raspored] " + datum + ": mijenjan nakon slanja " +
+                dan.getString("poslano") + " — šaljem ispravak");
   }
 
   const stavke = stavkeDana(datum);
